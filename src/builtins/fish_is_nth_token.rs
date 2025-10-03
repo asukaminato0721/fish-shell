@@ -16,7 +16,7 @@ pub fn fish_is_nth_token(
     const LONGOPTS: &[WOption] = &[wopt(L!("help"), ArgType::NoArgument, 'h')];
 
     let mut w = WGetopter::new(SHORTOPTS, LONGOPTS, argv);
-    while let Some(opt) = w.next_opt() {
+    if let Some(opt) = w.next_opt() {
         match opt {
             'h' => {
                 builtin_print_help(parser, streams, cmd);
