@@ -36,9 +36,9 @@ You can also surface the completion pager automatically as you type by setting
 
   set -g fish_autocomplete_autoshow 1
 
-This shows the same "cheap" (history- and context-based) completions that autosuggestions rely on,
-without having to press :kbd:`tab`. It updates asynchronously, so it stays responsive even when
-more expensive completions might take longer to gather.
+This shows completions (like options, files, and history) automatically as you type,
+without having to press :kbd:`tab`. It works even after a space or when backspacing,
+and updates asynchronously to stay responsive.
 
 .. _tab-completion:
 

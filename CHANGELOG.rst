@@ -9,6 +9,7 @@ Scripting improvements
 
 Interactive improvements
 ------------------------
+- New "live completions" feature: the completion pager can now be automatically shown as you type by setting ``$fish_autocomplete_autoshow`` to 1. This surfaces relevant completions (options, files, etc.) in real-time, including after spaces and when backspacing (:issue:`12095`).
 - The ``bind`` builtin lists mappings from all modes if ``--mode`` is not provided (:issue:`12214`).
 
 New or improved bindings
