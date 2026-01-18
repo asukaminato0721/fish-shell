@@ -1582,8 +1582,8 @@ You can change the settings of fish by changing the values of certain variables.
 .. envvar:: fish_autocomplete_autoshow
 
    controls whether fish should surface the completion pager automatically as you type.
-   Set it to 1 to display "cheap" completions derived from autosuggestions without
-   pressing :kbd:`tab`. This also works when :envvar:`fish_autosuggestion_enabled` is 0,
+   Set it to 1 to display completions (options, files, etc.) without pressing :kbd:`tab`.
+   This also works when :envvar:`fish_autosuggestion_enabled` is 0,
    if you only want the live completion list.
 
 .. envvar:: fish_transient_prompt

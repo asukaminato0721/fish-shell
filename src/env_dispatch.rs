@@ -16,6 +16,7 @@ use crate::screen::{
 };
 use crate::terminal::ColorSupport;
 use crate::terminal::use_terminfo;
+use crate::threads::is_main_thread;
 use crate::tty_handoff::xtversion;
 use crate::wcstringutil::string_prefixes_string;
 use crate::wutil::fish_wcstoi;
@@ -241,7 +242,7 @@ pub fn env_dispatch_var_change(milieu: VarChangeMilieu, key: &wstr, vars: &EnvSt
     }
 
     // TODO(MSRV>=1.88): if-let
-    if !suppress_repaint {
+    if !suppress_repaint && is_main_thread() {
         if let Some(data) = reader_current_data() {
             if string_prefixes_string(L!("fish_color_"), key) || {
                 // TODO Don't re-exec prompt when only pager color changed.
