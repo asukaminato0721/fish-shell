@@ -113,7 +113,7 @@ use crate::parse_util::{
     parse_util_lineno, parse_util_locate_cmdsubst_range, parse_util_token_extent,
 };
 use crate::parser::ParserEnvSetMode;
-use crate::parser::{BlockType, EvalRes, Parser};
+use crate::parser::{BlockType, CancelBehavior, EvalRes, Parser};
 use crate::prelude::*;
 use crate::proc::{
     have_proc_stat, hup_jobs, is_interactive_session, job_reap, jobs_requiring_warning_on_exit,
@@ -5317,12 +5317,37 @@ fn get_autosuggestion_performer(
     want_autoshow: bool,
 ) -> impl FnOnce() -> AutosuggestionResult + use<> {
     let generation_count = read_generation_count();
-    let vars = parser.vars().snapshot();
+    let vars = parser.vars().create_child(false);
     let working_directory = parser.vars().get_pwd_slash();
     move || {
         assert_is_background_thread();
         let nothing = AutosuggestionResult::default();
-        let ctx = get_bg_context(&vars, generation_count);
+        let cancel_checker = move || generation_count != read_generation_count();
+
+        // If we want autoshow, we need a parser to run completions that require command substitutions.
+        let parser = if want_autoshow {
+            Some(Parser::new(
+                vars.create_child(false),
+                CancelBehavior::Return,
+            ))
+        } else {
+            None
+        };
+
+        let ctx = if let Some(parser) = &parser {
+            OperationContext::foreground(
+                parser,
+                Box::new(cancel_checker),
+                crate::operation_context::EXPANSION_LIMIT_BACKGROUND,
+            )
+        } else {
+            OperationContext::background_with_cancel_checker(
+                &vars,
+                Box::new(cancel_checker),
+                crate::operation_context::EXPANSION_LIMIT_BACKGROUND,
+            )
+        };
+
         if ctx.check_cancel() {
             return nothing;
         }
