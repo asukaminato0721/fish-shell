@@ -213,6 +213,15 @@ impl Completion {
 }
 
 impl CompletionRequestOptions {
+    /// Options for autoshow.
+    pub fn autoshow() -> Self {
+        Self {
+            autosuggestion: false,
+            descriptions: true,
+            fuzzy_match: true,
+        }
+    }
+
     /// Options for an autosuggestion.
     pub fn autosuggest() -> Self {
         Self {

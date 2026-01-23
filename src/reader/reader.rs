@@ -5324,8 +5324,26 @@ fn get_autosuggestion_performer(
         let nothing = AutosuggestionResult::default();
         let cancel_checker = move || generation_count != read_generation_count();
 
+        // Check blocklist to see if we should suppress autoshow for this command.
+        let mut want_autoshow_pager = want_autoshow;
+        if want_autoshow_pager {
+            if let Some(blocklist) = vars.get(L!("fish_autoshow_blocklist")) {
+                let mut tokens = vec![];
+                parse_util_process_extent(&command_line, cursor_pos, Some(&mut tokens));
+                if let Some(first) = tokens.first() {
+                    if first.type_ == TokenType::String {
+                        let cmd = first.get_source(&command_line);
+                        // Check if the command is in the blocklist.
+                        if blocklist.as_list().iter().any(|s| s == cmd) {
+                            want_autoshow_pager = false;
+                        }
+                    }
+                }
+            }
+        }
+
         // If we want autoshow, we need a parser to run completions that require command substitutions.
-        let parser = if want_autoshow {
+        let parser = if want_autoshow_pager {
             Some(Parser::new(
                 vars.create_child(false),
                 CancelBehavior::Return,
@@ -5479,7 +5497,7 @@ fn get_autosuggestion_performer(
             return nothing;
         }
 
-        if !want_autoshow && history_result_is_whole {
+        if !want_autoshow_pager && history_result_is_whole {
             if let Some(result) = history_result.take() {
                 return result;
             }
@@ -5504,7 +5522,7 @@ fn get_autosuggestion_performer(
             return nothing;
         }
 
-        if !want_autoshow {
+        if !want_autoshow_pager {
             if let Some(result) = history_result {
                 return result;
             }
@@ -5512,8 +5530,9 @@ fn get_autosuggestion_performer(
 
         let mut completion_result = None;
         let mut completion_case_fold = None;
-        if history_result.is_none() || want_autoshow || !history_result_is_whole {
-            let complete_flags = if want_autoshow {
+        let need_completions_for_autosuggestion = history_result.is_none() || !history_result_is_whole;
+        if need_completions_for_autosuggestion || want_autoshow_pager {
+            let complete_flags = if want_autoshow_pager {
                 CompletionRequestOptions::autoshow()
             } else {
                 // Try normal completions for autosuggestion.
@@ -5525,11 +5544,15 @@ fn get_autosuggestion_performer(
 
             if !completions.is_empty() {
                 sort_and_prioritize(&mut completions, complete_flags);
-                let cheap_menu: CompletionList = completions
-                    .iter()
-                    .take(AUTOSHOW_COMPLETION_LIMIT)
-                    .cloned()
-                    .collect();
+                let cheap_menu: CompletionList = if want_autoshow_pager {
+                    completions
+                        .iter()
+                        .take(AUTOSHOW_COMPLETION_LIMIT)
+                        .cloned()
+                        .collect()
+                } else {
+                    CompletionList::new()
+                };
                 let comp = &completions[0];
                 completion_case_fold = Some(comp.r#match.case_fold);
 

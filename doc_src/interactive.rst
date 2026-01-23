@@ -40,6 +40,15 @@ This shows completions (like options, files, and history) automatically as you t
 without having to press :kbd:`tab`. It works even after a space or when backspacing,
 and updates asynchronously to stay responsive.
 
+If you find that this feature is too slow for certain commands (for example, git completions
+can be resource-intensive), you can disable it for those specific commands by adding them to the
+``$fish_autoshow_blocklist`` variable::
+
+  set -g fish_autoshow_blocklist git
+
+This will prevent the completion pager from automatically appearing for ``git``, while still
+allowing standard autosuggestions (ghost text) from history to work.
+
 .. _tab-completion:
 
 Tab Completion

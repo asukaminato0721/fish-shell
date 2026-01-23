@@ -1586,6 +1586,12 @@ You can change the settings of fish by changing the values of certain variables.
    This also works when :envvar:`fish_autosuggestion_enabled` is 0,
    if you only want the live completion list.
 
+.. envvar:: fish_autoshow_blocklist
+
+   list of commands for which the autoshow completion pager should be suppressed.
+   This is useful for commands with slow completion scripts (for example, ``git``).
+   Autosuggestions (ghost text) still work even when a command is blocklisted.
+
 .. envvar:: fish_transient_prompt
 
    If this is set to 1, fish will redraw prompts with a ``--final-rendering`` argument before running a commandline, allowing you to change it before pushing it to the scrollback. This enables :ref:`transient prompts <transient-prompt>`.

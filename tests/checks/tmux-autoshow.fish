@@ -44,6 +44,10 @@ isolated-tmux-start -C '
         end
     end
     complete -c autoshowcmd -f -n "__fish_use_subcommand" -a "(__autoshowcmd_subcmds)"
+
+    # Seed history so the blocklist-clearing test can take a history-fast path if applicable.
+    # (We do not assert autosuggestion text; we only need this to make the codepath possible.)
+    history append "blockedcmd test_autoshow/dirA/"
 '
 
 tmux-sleep
@@ -239,3 +243,41 @@ __pane_print_token commit
 # CHECK: commit
 __pane_print_token dummy_subcmd001
 # CHECK: dummy_subcmd001
+
+# Test 6: Blocklist clears an already-visible autoshow pager (stale candidates must disappear)
+#
+# This is specifically meant to catch the case where autoshow stops producing updates (e.g. returns early
+# via history) but the pager is not explicitly cleared and stale candidates remain on screen.
+#
+# Approach:
+#  - Show autoshow candidates for a normal commandline ("cat test_autoshow/"), ensuring the pager is visible.
+#  - With the same screen content (no C-l), edit ONLY the command token to a blocklisted command ("blockedcmd"),
+#    keeping the rest of the line intact.
+#  - Verify that a token that was visible only because of the pager (dirA/) is no longer present on the screen.
+isolated-tmux send-keys C-c
+isolated-tmux send-keys 'set -g fish_autoshow_blocklist blockedcmd' Enter
+tmux-sleep
+isolated-tmux send-keys C-u
+isolated-tmux send-keys C-l
+tmux-sleep
+
+# First show autoshow candidates (pager visible).
+isolated-tmux send-keys 'cat test_autoshow/'
+tmux-sleep
+sleep-until '__pane_has_token dirA/'
+
+# Now, without clearing the screen, change "cat" -> "blockedcmd" in-place.
+# We do this by deleting the three characters "cat" at the start, then inserting "blockedcmd".
+isolated-tmux send-keys C-a DC DC DC blockedcmd
+tmux-sleep
+
+# Ensure the edited commandline is visible.
+sleep-until 'isolated-tmux capture-pane -p | grep -Eq "^prompt [0-9]+> blockedcmd test_autoshow/"'
+
+# If autoshow correctly clears on blocklist, the old pager tokens should disappear from the visible pane.
+if __pane_has_token dirA/
+    echo 'autoshow-blocklist-clears: FAIL (stale pager token present)'
+else
+    echo 'autoshow-blocklist-clears: OK'
+end
+# CHECK: autoshow-blocklist-clears: OK
