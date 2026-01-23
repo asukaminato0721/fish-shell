@@ -5324,6 +5324,24 @@ fn get_autosuggestion_performer(
         let nothing = AutosuggestionResult::default();
         let cancel_checker = move || generation_count != read_generation_count();
 
+        // Check blocklist to see if we should suppress autoshow for this command.
+        let mut want_autoshow = want_autoshow;
+        if want_autoshow {
+            if let Some(blocklist) = vars.get(L!("fish_autoshow_blocklist")) {
+                let mut tokens = vec![];
+                parse_util_process_extent(&command_line, cursor_pos, Some(&mut tokens));
+                if let Some(first) = tokens.first() {
+                    if first.type_ == TokenType::String {
+                        let cmd = first.get_source(&command_line);
+                        // Check if the command is in the blocklist.
+                        if blocklist.as_list().iter().any(|s| s == cmd) {
+                            want_autoshow = false;
+                        }
+                    }
+                }
+            }
+        }
+
         // If we want autoshow, we need a parser to run completions that require command substitutions.
         let parser = if want_autoshow {
             Some(Parser::new(
