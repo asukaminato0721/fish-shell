@@ -5530,7 +5530,8 @@ fn get_autosuggestion_performer(
 
         let mut completion_result = None;
         let mut completion_case_fold = None;
-        let need_completions_for_autosuggestion = history_result.is_none() || !history_result_is_whole;
+        let need_completions_for_autosuggestion =
+            history_result.is_none() || !history_result_is_whole;
         if need_completions_for_autosuggestion || want_autoshow_pager {
             let complete_flags = if want_autoshow_pager {
                 CompletionRequestOptions::autoshow()
@@ -5853,7 +5854,7 @@ impl<'a> Reader<'a> {
             .replace_substring(EditableLineTag::Commandline, range, replacement);
     }
 
-    fn update_autoshow_completions(&mut self, completions: CompletionList) {
+    fn update_autoshow_completions(&mut self, mut completions: CompletionList) {
         if completions.is_empty() {
             self.clear_autoshow_pager();
             return;
@@ -5879,7 +5880,32 @@ impl<'a> Reader<'a> {
             return;
         }
 
-        let prefix = self.autoshow_prefix_for_current_token();
+        let token = self.get_autoshow_token();
+        let token_slice: &wstr = &token;
+        let last_slash_idx = token_slice.chars().rposition(|c| c == '/');
+        let (dir_part, file_part) = if let Some(idx) = last_slash_idx {
+            token_slice.split_at(idx + 1)
+        } else {
+            (L!("").as_ref(), token_slice)
+        };
+
+        // We do not show the prefix (directory part) in the pager.
+        // Instead we show the full relative path (file_part + completion).
+        let prefix = WString::new();
+
+        for comp in &mut completions {
+            if comp.replaces_token() {
+                if comp.completion.starts_with(dir_part) {
+                    let new_comp = comp.completion[dir_part.len()..].to_owned();
+                    comp.completion = new_comp;
+                }
+            } else {
+                let mut new_comp = file_part.to_owned();
+                new_comp.push_utfstr(&comp.completion);
+                comp.completion = new_comp;
+            }
+        }
+
         self.pager.set_search_field_shown(false);
         self.pager.set_prefix(Cow::Owned(prefix), true);
         self.pager.set_completions(&completions, true);
@@ -5890,7 +5916,7 @@ impl<'a> Reader<'a> {
         self.layout_and_repaint(L!("autoshow"));
     }
 
-    fn autoshow_prefix_for_current_token(&self) -> WString {
+    fn get_autoshow_token(&self) -> WString {
         let el = &self.command_line;
         if el.is_empty() {
             return WString::new();
@@ -5911,33 +5937,8 @@ impl<'a> Reader<'a> {
         }
         token_range.start += cmdsub.start;
         token_range.end += cmdsub.start;
-        let token = &text[token_range];
-        autoshow_prefix_from_token(token)
+        text[token_range].to_owned()
     }
-}
-
-fn autoshow_prefix_from_token(token: &wstr) -> WString {
-    if token.is_empty() {
-        return WString::new();
-    }
-    if token.len() <= PREFIX_MAX_LEN {
-        return token.to_owned();
-    }
-
-    let mut prefix = WString::new();
-    prefix.push(get_ellipsis_char());
-    let truncated = &token[token.len() - PREFIX_MAX_LEN..];
-    if let Some((idx, last_component)) = truncated.split('/').enumerate().last() {
-        if idx == 0 {
-            prefix.push_utfstr(truncated);
-        } else {
-            prefix.push('/');
-            prefix.push_utfstr(last_component);
-        }
-    } else {
-        prefix.push_utfstr(truncated);
-    }
-    prefix
 }
 
 #[derive(Default)]
@@ -7379,7 +7380,7 @@ impl<'a> Reader<'a> {
             } else {
                 tok + common_prefix
             };
-            if full.len() <= PREFIX_MAX_LEN {
+            if self.conf.autoshow_completions || full.len() <= PREFIX_MAX_LEN {
                 prefix = full;
             } else {
                 // Collapse parent directories and append end of string
@@ -7670,25 +7671,6 @@ mod tests {
     }
 
     // Autoshow tests
-    #[test]
-    fn test_autoshow_prefix_helper() {
-        let ellipsis = get_ellipsis_char();
-        assert_eq!(autoshow_prefix_from_token(L!("git")), L!("git"));
-
-        let mut expected = WString::new();
-        expected.push(ellipsis);
-        expected.push_utfstr(L!("longtoken"));
-        assert_eq!(autoshow_prefix_from_token(L!("averylongtoken")), expected);
-
-        let mut expected_path = WString::new();
-        expected_path.push(ellipsis);
-        expected_path.push('/');
-        expected_path.push_utfstr(L!("gamma"));
-        assert_eq!(
-            autoshow_prefix_from_token(L!("/alpha/beta/gamma")),
-            expected_path
-        );
-    }
 
     #[test]
     #[serial]
