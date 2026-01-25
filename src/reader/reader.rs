@@ -5513,8 +5513,12 @@ fn get_autosuggestion_performer(
         let mut completion_result = None;
         let mut completion_case_fold = None;
         if history_result.is_none() || want_autoshow || !history_result_is_whole {
-            // Try normal completions.
-            let complete_flags = CompletionRequestOptions::normal();
+            let complete_flags = if want_autoshow {
+                CompletionRequestOptions::autoshow()
+            } else {
+                // Try normal completions for autosuggestion.
+                CompletionRequestOptions::autosuggest()
+            };
             let would_be_cursor = line_range.end;
             let (mut completions, needs_load) =
                 complete(&command_line[..would_be_cursor], complete_flags, &ctx);
