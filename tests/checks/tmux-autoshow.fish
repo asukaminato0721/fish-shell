@@ -1,5 +1,6 @@
 #RUN: %fish %s
 #REQUIRES: command -v tmux
+#REQUIRES: uname -r | grep -qv Microsoft
 #REQUIRES: test -z "$CI"
 
 # Start a clean tmux session running fish and create predictable completion sets.
@@ -33,6 +34,12 @@ isolated-tmux-start -C '
         set n (printf "%03d" $i)
         touch test_autoshow/stable/test2suffix$n
     end
+
+
+    # Dataset for "tab completion ambiguous list" behavior.
+    mkdir -p test_autoshow/tab_ambig/collection
+    touch test_autoshow/tab_ambig/collection-plan.docx
+
 
     # Dataset for "subcommand parser" behavior.
     # Use a completion generator that relies on command substitution.
@@ -195,7 +202,40 @@ isolated-tmux capture-pane -p | grep -E '^prompt [0-9]+> cat test_autoshow/stabl
 __pane_print_token test2.txt
 # CHECK: test2.txt
 
-# Test 4 (Missing Test #8): Completing a directory token causes autoshow to list that directory's contents
+# Test 4: Tab completion ambiguous list owns the pager (autoshow must not overwrite it)
+isolated-tmux send-keys C-c
+isolated-tmux send-keys C-u
+isolated-tmux send-keys C-l
+tmux-sleep
+
+# Enter a directory where a directory and file share a prefix.
+isolated-tmux send-keys 'cd test_autoshow/tab_ambig' Enter
+tmux-sleep
+isolated-tmux send-keys C-l
+tmux-sleep
+
+# Press Tab on an ambiguous prefix. Fish inserts the directory completion but keeps the full list visible.
+isolated-tmux send-keys 'ls colle' Tab
+tmux-sleep
+sleep-until 'isolated-tmux capture-pane -p | grep -Eq "^prompt [0-9]+> ls collection/?"'
+sleep-until '__pane_has_token collection/'
+sleep-until '__pane_has_token collection-plan.docx'
+
+isolated-tmux capture-pane -p | grep -E '^prompt [0-9]+> ls collection' | head -1
+# CHECK: prompt {{\d+}}> ls collection
+
+__pane_print_token collection/
+# CHECK: collection/
+__pane_print_token collection-plan.docx
+# CHECK: collection-plan.docx
+
+# Return to test root.
+isolated-tmux send-keys C-c
+isolated-tmux send-keys 'cd ../..' Enter
+tmux-sleep
+
+
+# Test 5 (Missing Test #8): Completing a directory token causes autoshow to list that directory's contents
 isolated-tmux send-keys C-c
 isolated-tmux send-keys C-u
 isolated-tmux send-keys C-l
@@ -218,7 +258,7 @@ __pane_print_token test2.txt
 __pane_print_token test2.md
 # CHECK: test2.md
 
-# Test 5 (Missing Test #6): Autoshow parser for subcommands renders command-substitution subcommand completions
+# Test 6 (Missing Test #6): Autoshow parser for subcommands renders command-substitution subcommand completions
 # The completion list for the subcommand position should include both literal and generated candidates.
 isolated-tmux send-keys C-c
 isolated-tmux send-keys C-u
@@ -244,7 +284,7 @@ __pane_print_token commit
 __pane_print_token dummy_subcmd001
 # CHECK: dummy_subcmd001
 
-# Test 6: Blocklist clears an already-visible autoshow pager (stale candidates must disappear)
+# Test 7: Blocklist clears an already-visible autoshow pager (stale candidates must disappear)
 #
 # This is specifically meant to catch the case where autoshow stops producing updates (e.g. returns early
 # via history) but the pager is not explicitly cleared and stale candidates remain on screen.

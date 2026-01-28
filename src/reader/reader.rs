@@ -5530,7 +5530,8 @@ fn get_autosuggestion_performer(
 
         let mut completion_result = None;
         let mut completion_case_fold = None;
-        let need_completions_for_autosuggestion = history_result.is_none() || !history_result_is_whole;
+        let need_completions_for_autosuggestion =
+            history_result.is_none() || !history_result_is_whole;
         if need_completions_for_autosuggestion || want_autoshow_pager {
             let complete_flags = if want_autoshow_pager {
                 CompletionRequestOptions::autoshow()
@@ -7379,7 +7380,7 @@ impl<'a> Reader<'a> {
             } else {
                 tok + common_prefix
             };
-            if full.len() <= PREFIX_MAX_LEN {
+            if self.conf.autoshow_completions || full.len() <= PREFIX_MAX_LEN {
                 prefix = full;
             } else {
                 // Collapse parent directories and append end of string
