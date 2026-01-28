@@ -5535,8 +5535,8 @@ fn get_autosuggestion_performer(
             let complete_flags = if want_autoshow_pager {
                 CompletionRequestOptions::autoshow()
             } else {
-                // Try normal completions.
-                CompletionRequestOptions::normal()
+                // Try normal completions for autosuggestion.
+                CompletionRequestOptions::autosuggest()
             };
             let would_be_cursor = line_range.end;
             let (mut completions, needs_load) =
