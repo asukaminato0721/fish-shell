@@ -5890,7 +5890,8 @@ impl<'a> Reader<'a> {
         };
 
         // We do not show the prefix (directory part) in the pager.
-        // Instead we show the full relative path (file_part + completion).
+        // Instead we show the full relative path (file_part + completion) and highlight the typed
+        // prefix within each candidate.
         let prefix = WString::new();
 
         for comp in &mut completions {
@@ -5908,6 +5909,8 @@ impl<'a> Reader<'a> {
 
         self.pager.set_search_field_shown(false);
         self.pager.set_prefix(Cow::Owned(prefix), true);
+        self.pager
+            .set_highlight_prefix_match(file_part.to_owned());
         self.pager.set_completions(&completions, true);
         // Record the command line so pager navigation applies relative to it.
         self.cycle_command_line = self.command_line.text().to_owned();

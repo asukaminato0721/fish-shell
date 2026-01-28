@@ -7,6 +7,9 @@
 # Disable autosuggestions to avoid races and keep captures stable.
 isolated-tmux-start -C '
     set -g fish_autosuggestion_enabled 0
+    set -g fish_pager_color_prefix --underline
+    set -g fish_pager_color_completion normal
+    set -g fish_pager_color_description normal
     rm -rf test_autoshow
 
     # Dataset for toggle-on/off behavior.
@@ -39,6 +42,7 @@ isolated-tmux-start -C '
     # Dataset for "tab completion ambiguous list" behavior.
     mkdir -p test_autoshow/tab_ambig/collection
     touch test_autoshow/tab_ambig/collection-plan.docx
+    mkdir -p test_autoshow/prefixcase/Bdir test_autoshow/prefixcase/bdir
 
 
     # Dataset for "subcommand parser" behavior.
@@ -72,6 +76,10 @@ end
 
 function __pane_print_token --argument token
     __pane_tokens | grep -Fx -- $token | head -1
+end
+
+function __pane_has_escape_pattern --argument pattern
+    isolated-tmux capture-pane -ep | string match -rq -- $pattern
 end
 
 function __pane_print_first_file
@@ -258,7 +266,44 @@ __pane_print_token test2.txt
 __pane_print_token test2.md
 # CHECK: test2.md
 
-# Test 6 (Missing Test #6): Autoshow parser for subcommands renders command-substitution subcommand completions
+# Test 6: Autoshow applies fish_pager_color_prefix to typed file path prefixes (case-insensitive)
+isolated-tmux send-keys C-c
+isolated-tmux send-keys C-u
+isolated-tmux send-keys C-l
+tmux-sleep
+
+isolated-tmux send-keys 'cd test_autoshow/prefixcase' Enter
+tmux-sleep
+isolated-tmux send-keys C-l
+tmux-sleep
+
+isolated-tmux send-keys 'cd b'
+tmux-sleep
+sleep-until '__pane_has_token Bdir/'
+sleep-until '__pane_has_token bdir/'
+
+set -l esc (printf '\e')
+set -l underline_pat "$esc\\[(?:[0-9]*;)*4(?:;[0-9]*)*m"
+set -l sgr_any "$esc\\[[0-9;]*m"
+if __pane_has_escape_pattern "$underline_pat""B(?:$sgr_any)*dir/"
+    echo 'autoshow-prefix-highlight-upper: OK'
+else
+    echo 'autoshow-prefix-highlight-upper: FAIL'
+end
+# CHECK: autoshow-prefix-highlight-upper: OK
+if __pane_has_escape_pattern "$underline_pat""b(?:$sgr_any)*dir/"
+    echo 'autoshow-prefix-highlight-lower: OK'
+else
+    echo 'autoshow-prefix-highlight-lower: FAIL'
+end
+# CHECK: autoshow-prefix-highlight-lower: OK
+
+# Return to test root.
+isolated-tmux send-keys C-c
+isolated-tmux send-keys 'cd ../..' Enter
+tmux-sleep
+
+# Test 7 (Missing Test #6): Autoshow parser for subcommands renders command-substitution subcommand completions
 # The completion list for the subcommand position should include both literal and generated candidates.
 isolated-tmux send-keys C-c
 isolated-tmux send-keys C-u
@@ -284,7 +329,7 @@ __pane_print_token commit
 __pane_print_token dummy_subcmd001
 # CHECK: dummy_subcmd001
 
-# Test 7: Blocklist clears an already-visible autoshow pager (stale candidates must disappear)
+# Test 8: Blocklist clears an already-visible autoshow pager (stale candidates must disappear)
 #
 # This is specifically meant to catch the case where autoshow stops producing updates (e.g. returns early
 # via history) but the pager is not explicitly cleared and stale candidates remain on screen.

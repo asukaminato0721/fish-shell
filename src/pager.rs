@@ -14,7 +14,9 @@ use crate::operation_context::OperationContext;
 use crate::prelude::*;
 use crate::screen::{CharOffset, Line, ScreenData, wcswidth_rendered, wcwidth_rendered};
 use crate::termsize::Termsize;
-use crate::wcstringutil::string_fuzzy_match_string;
+use crate::wcstringutil::{
+    CaseSensitivity, string_fuzzy_match_string, string_prefixes_string_maybe_case_insensitive,
+};
 
 /// Represents rendering from the pager.
 #[derive(Default)]
@@ -111,6 +113,7 @@ pub struct Pager {
 
     prefix: Cow<'static, wstr>,
     highlight_prefix: bool,
+    highlight_prefix_match: WString,
 
     // The text of the search field.
     pub search_field_line: EditableLine,
@@ -557,11 +560,32 @@ impl Pager {
                     &mut line_data,
                 );
             }
+            let highlight_prefix_len = if !self.highlight_prefix_match.is_empty()
+                && c.colors.is_empty()
+                && !selected
+                && matches!(prefix, Some(p) if p.is_empty())
+                && !c.representative.flags.contains(CompleteFlags::SUPPRESS_PAGER_PREFIX)
+            {
+                let icase = c.representative.r#match.case_fold != CaseSensitivity::Sensitive;
+                string_prefixes_string_maybe_case_insensitive(
+                    icase,
+                    &self.highlight_prefix_match,
+                    comp,
+                )
+                .then_some(self.highlight_prefix_match.len())
+                .unwrap_or(0)
+            } else {
+                0
+            };
+
             comp_remaining -= print_max_impl(
                 offset_in_cmdline,
                 comp,
                 |i| {
                     if c.colors.is_empty() {
+                        if highlight_prefix_len > 0 && i < highlight_prefix_len {
+                            return prefix_col;
+                        }
                         return comp_col; // Not a shell command.
                     }
                     if selected {
@@ -664,6 +688,12 @@ impl Pager {
     pub fn set_prefix(&mut self, prefix: Cow<'static, wstr>, highlight: bool /* = true */) {
         self.prefix = prefix;
         self.highlight_prefix = highlight;
+        self.highlight_prefix_match.clear();
+    }
+
+    // Sets the prefix to highlight within completion strings.
+    pub fn set_highlight_prefix_match(&mut self, prefix: WString) {
+        self.highlight_prefix_match = prefix;
     }
 
     // Sets the terminal size.
@@ -1002,6 +1032,7 @@ impl Pager {
         self.completion_infos.clear();
         self.prefix = Cow::Borrowed(L!(""));
         self.highlight_prefix = false;
+        self.highlight_prefix_match.clear();
         self.selected_completion_idx = None;
         self.fully_disclosed = false;
         self.search_field_shown = false;
