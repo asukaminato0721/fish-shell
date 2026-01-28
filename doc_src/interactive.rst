@@ -36,9 +36,18 @@ You can also surface the completion pager automatically as you type by setting
 
   set -g fish_autocomplete_autoshow 1
 
-This shows the same "cheap" (history- and context-based) completions that autosuggestions rely on,
-without having to press :kbd:`tab`. It updates asynchronously, so it stays responsive even when
-more expensive completions might take longer to gather.
+This shows completions (like options, files, and history) automatically as you type,
+without having to press :kbd:`tab`. It works even after a space or when backspacing,
+and updates asynchronously to stay responsive.
+
+If you find that this feature is too slow for certain commands (for example, git completions
+can be resource-intensive), you can disable it for those specific commands by adding them to the
+``$fish_autoshow_blocklist`` variable::
+
+  set -g fish_autoshow_blocklist git
+
+This will prevent the completion pager from automatically appearing for ``git``, while still
+allowing standard autosuggestions (ghost text) from history to work.
 
 .. _tab-completion:
 
