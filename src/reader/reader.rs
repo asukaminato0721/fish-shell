@@ -747,6 +747,7 @@ pub struct ReaderData {
     /// If these differs from the text of the command line, then we must kick off a new request.
     in_flight_highlight_request: WString,
     in_flight_autosuggest_request: WString,
+    in_flight_autosuggest_request_cursor_pos: usize,
 
     rls: Option<ReadlineLoopState>,
 
@@ -1423,6 +1424,7 @@ impl ReaderData {
             last_jump_precision: JumpPrecision::To,
             in_flight_highlight_request: Default::default(),
             in_flight_autosuggest_request: Default::default(),
+            in_flight_autosuggest_request_cursor_pos: Default::default(),
             rls: None,
             debouncers: Debouncers::new(),
         }))
@@ -5266,12 +5268,18 @@ pub(super) struct AutosuggestionResult {
 
     // The commandline this result is based off.
     command_line: WString,
+    // The cursor position this result is based off.
+    cursor_pos: usize,
 
     // The list of completions which may need loading.
     needs_load: Vec<WString>,
 
     // Cheap completions we can surface automatically.
     cheap_completions: CompletionList,
+    // Render-only text for autoshow entries.
+    autoshow_display_completions: Vec<WString>,
+    // Prefix to highlight inside autoshow completion display text.
+    autoshow_highlight_prefix_match: WString,
 }
 
 impl std::ops::Deref for AutosuggestionResult {
@@ -5284,6 +5292,7 @@ impl std::ops::Deref for AutosuggestionResult {
 impl AutosuggestionResult {
     fn new(
         command_line: WString,
+        cursor_pos: usize,
         search_string_range: Range<usize>,
         text: WString,
         icase: bool,
@@ -5298,8 +5307,11 @@ impl AutosuggestionResult {
                 is_whole_item_from_history,
             },
             command_line,
+            cursor_pos,
             needs_load: vec![],
             cheap_completions,
+            autoshow_display_completions: vec![],
+            autoshow_highlight_prefix_match: WString::new(),
         }
     }
 
@@ -5307,6 +5319,55 @@ impl AutosuggestionResult {
     fn search_string(&self) -> &wstr {
         &self.command_line[self.search_string_range.clone()]
     }
+}
+
+fn autoshow_token_at_cursor(command_line: &wstr, cursor_pos: usize) -> WString {
+    if command_line.is_empty() || cursor_pos > command_line.len() {
+        return WString::new();
+    }
+
+    let cmdsub = parse_util_cmdsubst_extent(command_line, cursor_pos);
+    let position_in_cmdsub = cursor_pos - cmdsub.start;
+    let (mut token_range, _) =
+        parse_util_token_extent(&command_line[cmdsub.clone()], position_in_cmdsub);
+    if token_range.end > cmdsub.len() {
+        token_range.end = cmdsub.len();
+    }
+    token_range.start += cmdsub.start;
+    token_range.end += cmdsub.start;
+    command_line[token_range].to_owned()
+}
+
+fn autoshow_display_completions_for_cursor(
+    command_line: &wstr,
+    cursor_pos: usize,
+    completions: &[Completion],
+) -> (Vec<WString>, WString) {
+    let token = autoshow_token_at_cursor(command_line, cursor_pos);
+    let token_slice: &wstr = &token;
+    let last_slash_idx = token_slice.chars().rposition(|c| c == '/');
+    let (dir_part, file_part) = if let Some(idx) = last_slash_idx {
+        token_slice.split_at(idx + 1)
+    } else {
+        (L!("").as_ref(), token_slice)
+    };
+
+    let mut display_completions = Vec::with_capacity(completions.len());
+    for comp in completions {
+        let display = if comp.replaces_token() {
+            if comp.completion.starts_with(dir_part) {
+                comp.completion[dir_part.len()..].to_owned()
+            } else {
+                comp.completion.clone()
+            }
+        } else {
+            let mut new_comp = file_part.to_owned();
+            new_comp.push_utfstr(&comp.completion);
+            new_comp
+        };
+        display_completions.push(display);
+    }
+    (display_completions, file_part.to_owned())
 }
 
 fn get_autosuggestion_performer(
@@ -5473,6 +5534,7 @@ fn get_autosuggestion_performer(
                     let is_whole = suggested_range.len() == item.str().len();
                     let result = AutosuggestionResult::new(
                         command_line.clone(),
+                        cursor_pos,
                         range.clone(),
                         full[suggested_range].into(),
                         icase,
@@ -5554,6 +5616,16 @@ fn get_autosuggestion_performer(
                 } else {
                     CompletionList::new()
                 };
+                let (autoshow_display_completions, autoshow_highlight_prefix_match) =
+                    if want_autoshow_pager {
+                        autoshow_display_completions_for_cursor(
+                            &command_line,
+                            would_be_cursor,
+                            &cheap_menu,
+                        )
+                    } else {
+                        (Vec::new(), WString::new())
+                    };
                 let comp = &completions[0];
                 completion_case_fold = Some(comp.r#match.case_fold);
 
@@ -5570,6 +5642,7 @@ fn get_autosuggestion_performer(
                 let suggestion = line_at_cursor(&full_line, cursor).to_owned();
                 let mut result = AutosuggestionResult::new(
                     command_line.clone(),
+                    cursor_pos,
                     line_range.clone(),
                     suggestion,
                     true, // normal completions are case-insensitive
@@ -5577,6 +5650,8 @@ fn get_autosuggestion_performer(
                     cheap_menu,
                 );
                 result.needs_load = needs_load;
+                result.autoshow_display_completions = autoshow_display_completions;
+                result.autoshow_highlight_prefix_match = autoshow_highlight_prefix_match;
                 completion_result = Some(result);
             }
         }
@@ -5655,10 +5730,15 @@ impl<'a> Reader<'a> {
     // Called after an autosuggestion has been computed on a background thread.
     fn autosuggest_completed(&mut self, mut result: AutosuggestionResult) {
         assert_is_main_thread();
-        if result.command_line == self.data.in_flight_autosuggest_request {
+        if result.command_line == self.data.in_flight_autosuggest_request
+            && result.cursor_pos == self.data.in_flight_autosuggest_request_cursor_pos
+        {
             self.data.in_flight_autosuggest_request.clear();
+            self.data.in_flight_autosuggest_request_cursor_pos = 0;
         }
-        if result.command_line != self.command_line.text() {
+        if result.command_line != self.command_line.text()
+            || result.cursor_pos != self.command_line.position()
+        {
             // This autosuggestion is stale.
             return;
         }
@@ -5680,7 +5760,14 @@ impl<'a> Reader<'a> {
             self.update_autosuggestion();
         } else {
             let cheap_menu = std::mem::take(&mut result.cheap_completions);
-            self.update_autoshow_completions(cheap_menu);
+            let display_completions = std::mem::take(&mut result.autoshow_display_completions);
+            let highlight_prefix_match =
+                std::mem::take(&mut result.autoshow_highlight_prefix_match);
+            self.update_autoshow_completions(
+                cheap_menu,
+                display_completions,
+                highlight_prefix_match,
+            );
             if !result.is_empty()
                 && self.can_autosuggest()
                 && string_prefixes_string_maybe_case_insensitive(
@@ -5702,6 +5789,7 @@ impl<'a> Reader<'a> {
         // If we can't autosuggest, just clear it.
         if !self.should_compute_background_completion() {
             self.data.in_flight_autosuggest_request.clear();
+            self.data.in_flight_autosuggest_request_cursor_pos = 0;
             self.data.autosuggestion.clear();
             self.clear_autoshow_pager();
             return;
@@ -5721,10 +5809,13 @@ impl<'a> Reader<'a> {
         }
 
         // Do nothing if we've already kicked off this autosuggest request.
-        if el.text() == self.in_flight_autosuggest_request {
+        if el.text() == self.in_flight_autosuggest_request
+            && el.position() == self.in_flight_autosuggest_request_cursor_pos
+        {
             return;
         }
         self.data.in_flight_autosuggest_request = el.text().to_owned();
+        self.data.in_flight_autosuggest_request_cursor_pos = el.position();
 
         // Clear the autosuggestion and kick it off in the background.
         flog!(reader_render, "Autosuggesting");
@@ -5854,7 +5945,12 @@ impl<'a> Reader<'a> {
             .replace_substring(EditableLineTag::Commandline, range, replacement);
     }
 
-    fn update_autoshow_completions(&mut self, mut completions: CompletionList) {
+    fn update_autoshow_completions(
+        &mut self,
+        completions: CompletionList,
+        mut display_completions: Vec<WString>,
+        highlight_prefix_match: WString,
+    ) {
         if completions.is_empty() {
             self.clear_autoshow_pager();
             return;
@@ -5880,67 +5976,24 @@ impl<'a> Reader<'a> {
             return;
         }
 
-        let token = self.get_autoshow_token();
-        let token_slice: &wstr = &token;
-        let last_slash_idx = token_slice.chars().rposition(|c| c == '/');
-        let (dir_part, file_part) = if let Some(idx) = last_slash_idx {
-            token_slice.split_at(idx + 1)
-        } else {
-            (L!("").as_ref(), token_slice)
-        };
-
-        // We do not show the prefix (directory part) in the pager.
-        // Instead we show the full relative path (file_part + completion) and highlight the typed
-        // prefix within each candidate.
-        let prefix = WString::new();
-
-        for comp in &mut completions {
-            if comp.replaces_token() {
-                if comp.completion.starts_with(dir_part) {
-                    let new_comp = comp.completion[dir_part.len()..].to_owned();
-                    comp.completion = new_comp;
-                }
-            } else {
-                let mut new_comp = file_part.to_owned();
-                new_comp.push_utfstr(&comp.completion);
-                comp.completion = new_comp;
-            }
+        if display_completions.len() != completions.len() {
+            display_completions = completions.iter().map(|c| c.completion.clone()).collect();
         }
 
+        // Render autoshow candidates using display-only text while preserving insertion completion
+        // semantics.
+        let prefix = WString::new();
         self.pager.set_search_field_shown(false);
         self.pager.set_prefix(Cow::Owned(prefix), true);
         self.pager
-            .set_highlight_prefix_match(file_part.to_owned());
-        self.pager.set_completions(&completions, true);
+            .set_highlight_prefix_match(highlight_prefix_match);
+        self.pager
+            .set_completions_with_display(&completions, &display_completions, true);
         // Record the command line so pager navigation applies relative to it.
         self.cycle_command_line = self.command_line.text().to_owned();
         self.cycle_cursor_pos = self.command_line.position();
         self.autoshow_pager_active = true;
         self.layout_and_repaint(L!("autoshow"));
-    }
-
-    fn get_autoshow_token(&self) -> WString {
-        let el = &self.command_line;
-        if el.is_empty() {
-            return WString::new();
-        }
-
-        let cursor_pos = el.position();
-        let text = el.text();
-        if cursor_pos > text.len() {
-            return WString::new();
-        }
-
-        let cmdsub = parse_util_cmdsubst_extent(text, cursor_pos);
-        let position_in_cmdsub = cursor_pos - cmdsub.start;
-        let (mut token_range, _) =
-            parse_util_token_extent(&text[cmdsub.clone()], position_in_cmdsub);
-        if token_range.end > cmdsub.len() {
-            token_range.end = cmdsub.len();
-        }
-        token_range.start += cmdsub.start;
-        token_range.end += cmdsub.start;
-        text[token_range].to_owned()
     }
 }
 
@@ -7843,5 +7896,57 @@ mod tests {
         parser.popd();
         history.clear();
         std::fs::remove_dir_all(&test_dir).ok();
+    }
+
+    #[test]
+    fn test_autoshow_display_text_does_not_mutate_completion_insertions() {
+        let replacement_completion = Completion::new(
+            L!("test_autoshow/stable/test2.txt").to_owned(),
+            WString::new(),
+            StringFuzzyMatch::exact_match(),
+            CompleteFlags::REPLACES_TOKEN,
+        );
+        let suffix_completion = Completion::new(
+            L!("st2.txt").to_owned(),
+            WString::new(),
+            StringFuzzyMatch::exact_match(),
+            CompleteFlags::default(),
+        );
+        let completions = vec![replacement_completion.clone(), suffix_completion.clone()];
+
+        let cmd = L!("cat test_autoshow/stable/te");
+        let (display, highlight_prefix_match) =
+            autoshow_display_completions_for_cursor(cmd, cmd.len(), &completions);
+
+        assert_eq!(highlight_prefix_match, L!("te"));
+        assert_eq!(
+            display,
+            vec![L!("test2.txt").to_owned(), L!("test2.txt").to_owned()]
+        );
+        assert_eq!(
+            completions[0].completion, replacement_completion.completion,
+            "display shaping must not alter insertion payloads"
+        );
+        assert_eq!(
+            completions[1].completion, suffix_completion.completion,
+            "display shaping must not alter insertion payloads"
+        );
+    }
+
+    #[test]
+    fn test_autoshow_display_text_without_path_separator() {
+        let completion = Completion::new(
+            L!("st2").to_owned(),
+            WString::new(),
+            StringFuzzyMatch::exact_match(),
+            CompleteFlags::default(),
+        );
+        let completions = vec![completion];
+        let cmd = L!("cat te");
+        let (display, highlight_prefix_match) =
+            autoshow_display_completions_for_cursor(cmd, cmd.len(), &completions);
+
+        assert_eq!(highlight_prefix_match, L!("te"));
+        assert_eq!(display, vec![L!("test2").to_owned()]);
     }
 }
