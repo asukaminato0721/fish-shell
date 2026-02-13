@@ -656,6 +656,15 @@ enum TransientEdit {
     HistorySearch,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Default)]
+enum PagerOwner {
+    #[default]
+    None,
+    Autoshow,
+    Completion,
+    History,
+}
+
 /// A struct describing the state of the interactive reader. These states can be stacked, in case
 /// reader_readline() calls are nested. This happens when the 'read' builtin is used.
 /// ReaderData does not contain a Parser - by itself it cannot execute fish script.
@@ -678,8 +687,8 @@ pub struct ReaderData {
     pager: Pager,
     /// The output of the pager.
     current_page_rendering: PageRendering,
-    /// Whether the pager currently shows automatically generated completions.
-    autoshow_pager_active: bool,
+    /// Which subsystem currently owns pager contents.
+    pager_owner: PagerOwner,
     /// When backspacing, we temporarily suppress autosuggestions.
     suppress_autosuggestion: bool,
 
@@ -1395,7 +1404,7 @@ impl ReaderData {
             saved_autosuggestion: Default::default(),
             pager: Default::default(),
             current_page_rendering: Default::default(),
-            autoshow_pager_active: false,
+            pager_owner: PagerOwner::None,
             suppress_autosuggestion: Default::default(),
             reset_loop_state: Default::default(),
             first_prompt: true,
@@ -3536,6 +3545,7 @@ impl<'a> Reader<'a> {
                 self.cycle_cursor_pos = self.command_line.position();
 
                 self.history_pager = Some(0..1);
+                self.pager_owner = PagerOwner::History;
                 // Update the pager data.
                 self.pager.set_search_field_shown(true);
                 self.pager.set_prefix(Cow::Borrowed(L!("► ")), false);
@@ -4623,7 +4633,7 @@ impl ReaderData {
     }
 
     fn clear_autoshow_pager(&mut self) {
-        if self.autoshow_pager_active {
+        if self.pager_owner == PagerOwner::Autoshow {
             self.reset_pager_state();
         }
     }
@@ -4633,7 +4643,7 @@ impl ReaderData {
         self.history_pager = None;
         self.clear(EditableLineTag::SearchField);
         self.command_line_transient_edit = None;
-        self.autoshow_pager_active = false;
+        self.pager_owner = PagerOwner::None;
     }
 
     fn get_selection(&self) -> Option<Range<usize>> {
@@ -5966,7 +5976,7 @@ impl<'a> Reader<'a> {
             return;
         }
 
-        if !self.autoshow_pager_active && !self.pager.is_empty() {
+        if self.pager_owner != PagerOwner::None && self.pager_owner != PagerOwner::Autoshow {
             // Another pager (history search or manual completion) owns the view.
             return;
         }
@@ -5992,7 +6002,7 @@ impl<'a> Reader<'a> {
         // Record the command line so pager navigation applies relative to it.
         self.cycle_command_line = self.command_line.text().to_owned();
         self.cycle_cursor_pos = self.command_line.position();
-        self.autoshow_pager_active = true;
+        self.pager_owner = PagerOwner::Autoshow;
         self.layout_and_repaint(L!("autoshow"));
     }
 }
@@ -6259,6 +6269,7 @@ impl<'a> Reader<'a> {
                 L!("").to_owned()
             };
         self.pager.set_completions(&result.matched_commands, false);
+        self.pager_owner = PagerOwner::History;
         if why == HistoryPagerInvocation::Refresh {
             self.pager.set_selected_completion_index(old_pager_index);
             self.pager_selection_changed();
@@ -7182,19 +7193,14 @@ impl<'a> Reader<'a> {
             "should not be called with TTY protocols active"
         );
 
-        // Remove a trailing backslash. This may trigger an extra repaint, but this is rare.
-        //
-        // When live completions (autoshow) are enabled, do not run this prelude, because it
-        // mutates the commandline and interferes with the desired autoshow behavior after Tab.
-        if !self.conf.autoshow_completions {
-            // If autoshow completions are currently displayed, clear them safely.
-            // (Do not just flip autoshow_pager_active while leaving pager contents.)
-            self.clear_autoshow_pager();
+        // If autoshow completions are currently displayed, clear them safely before manual
+        // completion updates pager ownership.
+        self.clear_autoshow_pager();
 
-            let el = &self.command_line;
-            if is_backslashed(el.text(), el.position()) {
-                self.delete_char(true);
-            }
+        // Remove a trailing backslash. This may trigger an extra repaint, but this is rare.
+        let el = &self.command_line;
+        if is_backslashed(el.text(), el.position()) {
+            self.delete_char(true);
         }
 
         // Figure out the extent of the command substitution surrounding the cursor.
@@ -7274,12 +7280,6 @@ impl<'a> Reader<'a> {
         self.cycle_cursor_pos = token_range.end;
 
         let inserted_unique = self.handle_completions(token_range, comp);
-
-        // If Tab showed an ambiguous completion list, that list should now own the pager.
-        // Prevent autoshow from overwriting it.
-        if !inserted_unique && !self.pager.is_empty() {
-            self.autoshow_pager_active = false;
-        }
 
         self.rls_mut().completion_action = if inserted_unique {
             Some(CompletionAction::InsertedUnique)
@@ -7473,6 +7473,7 @@ impl<'a> Reader<'a> {
         // Update the pager data.
         self.pager.set_prefix(prefix, true);
         self.pager.set_completions(&comp, true);
+        self.pager_owner = PagerOwner::Completion;
         // Modify the command line to reflect the new pager.
         self.pager_selection_changed();
         false
