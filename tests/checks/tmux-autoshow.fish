@@ -55,6 +55,18 @@ isolated-tmux-start -C '
     end
     complete -c autoshowcmd -f -n "__fish_use_subcommand" -a "(__autoshowcmd_subcmds)"
 
+    # Dataset for "history builtin from autoshow completion command substitution" behavior.
+    function autoshowhistcmd; end
+    function __autoshowhistcmd_args
+        # Directly exercise the history builtin from completion command substitution.
+        # The marker is validated later from the interactive shell.
+        builtin history append autoshowhist_probe_marker_001 >/dev/null 2>/dev/null; or true
+        for i in (seq 1 20)
+            printf "histprobe%03d\n" $i
+        end
+    end
+    complete -c autoshowhistcmd -f -a "(__autoshowhistcmd_args)"
+
     # Seed history so the blocklist-clearing test can take a history-fast path if applicable.
     # (We do not assert autosuggestion text; we only need this to make the codepath possible.)
     history append "blockedcmd test_autoshow/dirA/"
@@ -365,3 +377,46 @@ else
     echo 'autoshow-blocklist-clears: OK'
 end
 # CHECK: autoshow-blocklist-clears: OK
+
+# Test 9: History builtin in autoshow completion command substitution is threadsafe
+# Trigger autoshow on a command with command-substitution completions that call `builtin history`,
+# then verify the marker was appended and fish remains responsive.
+isolated-tmux send-keys C-c
+isolated-tmux send-keys C-u
+isolated-tmux send-keys C-l
+tmux-sleep
+
+isolated-tmux send-keys 'autoshowhistcmd '
+tmux-sleep
+tmux-sleep
+
+isolated-tmux send-keys C-c
+isolated-tmux send-keys 'history search --exact autoshowhist_probe_marker_001 >/dev/null; and echo autoshow-history-probe-hit; or echo autoshow-history-probe-miss' Enter
+tmux-sleep
+sleep-until '__pane_has_token autoshow-history-probe-hit'
+
+__pane_print_token autoshow-history-probe-hit
+# CHECK: autoshow-history-probe-hit
+
+# Test 10: Editing an existing command to prepend sudo does not crash fish
+isolated-tmux send-keys C-c
+isolated-tmux send-keys C-u
+isolated-tmux send-keys C-l
+tmux-sleep
+
+isolated-tmux send-keys 'cp test_autoshow/file001 .'
+tmux-sleep
+sleep-until 'isolated-tmux capture-pane -p | grep -Fq "cp test_autoshow/file001 ."'
+
+# Jump to start of line and prepend sudo, matching the reported crash pattern.
+isolated-tmux send-keys C-a 'sudo '
+tmux-sleep
+
+# Confirm shell remains alive and responsive.
+isolated-tmux send-keys C-c
+isolated-tmux send-keys 'echo autoshow-sudo-edit-no-crash' Enter
+tmux-sleep
+sleep-until '__pane_has_token autoshow-sudo-edit-no-crash'
+
+__pane_print_token autoshow-sudo-edit-no-crash
+# CHECK: autoshow-sudo-edit-no-crash

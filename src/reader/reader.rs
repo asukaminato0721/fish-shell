@@ -138,7 +138,7 @@ use crate::terminal::TerminalCommand::{
 use crate::termsize::{safe_termsize_invalidate_tty, termsize_last, termsize_update};
 use crate::text_face::TextFace;
 use crate::text_face::parse_text_face;
-use crate::threads::{assert_is_background_thread, assert_is_main_thread};
+use crate::threads::{assert_is_background_thread, assert_is_main_thread, is_main_thread};
 use crate::tokenizer::quote_end;
 use crate::tokenizer::variable_assignment_equals_pos;
 use crate::tokenizer::{
@@ -1255,7 +1255,7 @@ pub fn reader_readline(
 
 /// Get the command line state. This may be fetched on a background thread.
 pub fn commandline_get_state(sync: bool) -> CommandlineState {
-    if sync {
+    if sync && is_main_thread() {
         current_data().map(|data| data.update_commandline_state());
     }
     commandline_state_snapshot().clone()

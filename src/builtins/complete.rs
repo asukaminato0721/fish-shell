@@ -8,6 +8,7 @@ use crate::parse_util::parse_util_detect_errors_in_argument_list;
 use crate::parse_util::{parse_util_detect_errors, parse_util_token_extent};
 use crate::proc::is_interactive_session;
 use crate::reader::{commandline_get_state, completion_apply_to_command_line};
+use crate::threads::is_main_thread;
 use crate::wcstringutil::string_suffixes_string;
 use crate::{
     common::bytes2wcstring,
@@ -486,7 +487,7 @@ pub fn complete(parser: &Parser, streams: &mut IoStreams, argv: &mut [&wstr]) ->
         let do_complete_param = match do_complete_param {
             None => {
                 // No argument given, try to use the current commandline.
-                let commandline_state = commandline_get_state(true);
+                let commandline_state = commandline_get_state(is_main_thread());
                 if !parser.interactive_initialized.load() && !is_interactive_session() {
                     streams.err.append(cmd);
                     streams

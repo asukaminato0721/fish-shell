@@ -3,6 +3,7 @@
 use crate::history::in_private_mode;
 use crate::history::{self, History, history_session_id};
 use crate::reader::commandline_get_state;
+use crate::threads::is_main_thread;
 
 use super::prelude::*;
 
@@ -259,7 +260,7 @@ pub fn history(parser: &Parser, streams: &mut IoStreams, args: &mut [&wstr]) -> 
 
     // Use the default history if we have none (which happens if invoked non-interactively, e.g.
     // from webconfig.py.
-    let history = commandline_get_state(true)
+    let history = commandline_get_state(is_main_thread())
         .history
         .unwrap_or_else(|| History::with_name(&history_session_id(parser.vars())));
 
