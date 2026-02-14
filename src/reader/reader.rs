@@ -5364,11 +5364,20 @@ fn autoshow_display_completions_for_cursor(
 
     let mut display_completions = Vec::with_capacity(completions.len());
     for comp in completions {
+        let completion_matches_prefix = !file_part.is_empty()
+            && (comp.completion.starts_with(file_part)
+                || string_prefixes_string_case_insensitive(file_part, &comp.completion));
         let display = if comp.replaces_token() {
-            if comp.completion.starts_with(dir_part) {
+            if !dir_part.is_empty() && comp.completion.starts_with(dir_part) {
                 comp.completion[dir_part.len()..].to_owned()
-            } else {
+            } else if completion_matches_prefix {
                 comp.completion.clone()
+            } else if file_part.starts_with('-') {
+                comp.completion.clone()
+            } else {
+                let mut new_comp = file_part.to_owned();
+                new_comp.push_utfstr(&comp.completion);
+                new_comp
             }
         } else {
             let mut new_comp = file_part.to_owned();
@@ -5701,6 +5710,10 @@ fn get_autosuggestion_performer(
             if let Some(comp_res) = &completion_result {
                 history_res.cheap_completions = comp_res.cheap_completions.clone();
                 history_res.needs_load = comp_res.needs_load.clone();
+                history_res.autoshow_display_completions =
+                    comp_res.autoshow_display_completions.clone();
+                history_res.autoshow_highlight_prefix_match =
+                    comp_res.autoshow_highlight_prefix_match.clone();
             }
             return history_res;
         }
@@ -5714,6 +5727,10 @@ fn get_autosuggestion_performer(
                     if let Some(comp_res) = &completion_result {
                         icase_res.cheap_completions = comp_res.cheap_completions.clone();
                         icase_res.needs_load = comp_res.needs_load.clone();
+                        icase_res.autoshow_display_completions =
+                            comp_res.autoshow_display_completions.clone();
+                        icase_res.autoshow_highlight_prefix_match =
+                            comp_res.autoshow_highlight_prefix_match.clone();
                     }
                     return icase_res;
                 }
@@ -7925,6 +7942,187 @@ mod tests {
     }
 
     #[test]
+    #[serial]
+    fn test_autoshow_icase_history_result_preserves_display_payloads() {
+        let _cleanup = test_init();
+        let parser = TestParser::new();
+
+        let test_dir = unique_test_dir("autoshow_icase_history_display");
+        std::fs::remove_dir_all(&test_dir).ok();
+        std::fs::create_dir_all(format!("{}/context", test_dir)).unwrap();
+        std::fs::write(format!("{}/Caaa", test_dir), "").unwrap();
+        parser.pushd(&test_dir);
+
+        let hist_name = unique_history_name(L!("autoshow_icase_history_display_history"));
+        let history = History::with_name(&hist_name);
+        history.clear();
+        // Case-insensitive history hit for "cat c" so this takes the icase-history path.
+        history.add_commandline(L!("CAT context").to_owned());
+
+        let cmd = L!("cat c");
+        let performer =
+            get_autosuggestion_performer(&parser, cmd.to_owned(), cmd.len(), history.clone(), true);
+        let result = performer();
+
+        assert!(
+            !result.cheap_completions.is_empty(),
+            "expected completions to be available"
+        );
+        assert_eq!(
+            result.autoshow_display_completions.len(),
+            result.cheap_completions.len(),
+            "display payloads must stay aligned with completion payloads"
+        );
+
+        let display_completions: Vec<String> = result
+            .autoshow_display_completions
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        assert!(
+            display_completions.iter().any(|s| s == "context/"),
+            "expected full display item 'context/', got: {:?}",
+            display_completions
+        );
+        assert!(
+            !display_completions.iter().any(|s| s == "ontext/"),
+            "display payload must not regress to suffix-only item, got: {:?}",
+            display_completions
+        );
+
+        parser.popd();
+        history.clear();
+        std::fs::remove_dir_all(&test_dir).ok();
+    }
+
+    #[test]
+    #[serial]
+    fn test_autoshow_history_result_preserves_display_payloads() {
+        let _cleanup = test_init();
+        let parser = TestParser::new();
+
+        let test_dir = unique_test_dir("autoshow_history_display");
+        std::fs::remove_dir_all(&test_dir).ok();
+        std::fs::create_dir_all(format!("{}/context", test_dir)).unwrap();
+        std::fs::write(format!("{}/contrib", test_dir), "").unwrap();
+        parser.pushd(&test_dir);
+
+        let hist_name = unique_history_name(L!("autoshow_history_display_history"));
+        let history = History::with_name(&hist_name);
+        history.clear();
+        // Case-sensitive history hit for "cat co" takes the whole-history path.
+        history.add_commandline(L!("cat context").to_owned());
+
+        let cmd = L!("cat co");
+        let performer =
+            get_autosuggestion_performer(&parser, cmd.to_owned(), cmd.len(), history.clone(), true);
+        let result = performer();
+
+        assert!(
+            !result.cheap_completions.is_empty(),
+            "expected completions to be available"
+        );
+        assert_eq!(
+            result.autoshow_display_completions.len(),
+            result.cheap_completions.len(),
+            "display payloads must stay aligned with completion payloads"
+        );
+
+        let display_completions: Vec<String> = result
+            .autoshow_display_completions
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        assert!(
+            display_completions.iter().any(|s| s == "context/"),
+            "expected full display item 'context/', got: {:?}",
+            display_completions
+        );
+        assert!(
+            display_completions.iter().any(|s| s == "contrib"),
+            "expected full display item 'contrib', got: {:?}",
+            display_completions
+        );
+        assert!(
+            !display_completions.iter().any(|s| s == "ntext/"),
+            "display payload must not regress to suffix-only item, got: {:?}",
+            display_completions
+        );
+        assert!(
+            !display_completions.iter().any(|s| s == "ntrib"),
+            "display payload must not regress to suffix-only item, got: {:?}",
+            display_completions
+        );
+
+        parser.popd();
+        history.clear();
+        std::fs::remove_dir_all(&test_dir).ok();
+    }
+
+    #[test]
+    #[serial]
+    fn test_autoshow_history_result_preserves_display_payloads_with_path_prefix() {
+        let _cleanup = test_init();
+        let parser = TestParser::new();
+
+        let test_dir = unique_test_dir("autoshow_history_display_path_prefix");
+        std::fs::remove_dir_all(&test_dir).ok();
+        std::fs::create_dir_all(format!("{}/history_case/context", test_dir)).unwrap();
+        std::fs::write(format!("{}/history_case/contrib", test_dir), "").unwrap();
+        parser.pushd(&test_dir);
+
+        let hist_name = unique_history_name(L!("autoshow_history_display_path_prefix_history"));
+        let history = History::with_name(&hist_name);
+        history.clear();
+        history.add_commandline(L!("cat history_case/context").to_owned());
+
+        let cmd = L!("cat history_case/co");
+        let performer =
+            get_autosuggestion_performer(&parser, cmd.to_owned(), cmd.len(), history.clone(), true);
+        let result = performer();
+
+        assert!(
+            !result.cheap_completions.is_empty(),
+            "expected completions to be available"
+        );
+        assert_eq!(
+            result.autoshow_display_completions.len(),
+            result.cheap_completions.len(),
+            "display payloads must stay aligned with completion payloads"
+        );
+
+        let display_completions: Vec<String> = result
+            .autoshow_display_completions
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        assert!(
+            display_completions.iter().any(|s| s == "context/"),
+            "expected full display item 'context/', got: {:?}",
+            display_completions
+        );
+        assert!(
+            display_completions.iter().any(|s| s == "contrib"),
+            "expected full display item 'contrib', got: {:?}",
+            display_completions
+        );
+        assert!(
+            !display_completions.iter().any(|s| s == "ntext/"),
+            "display payload must not regress to suffix-only item, got: {:?}",
+            display_completions
+        );
+        assert!(
+            !display_completions.iter().any(|s| s == "ntrib"),
+            "display payload must not regress to suffix-only item, got: {:?}",
+            display_completions
+        );
+
+        parser.popd();
+        history.clear();
+        std::fs::remove_dir_all(&test_dir).ok();
+    }
+
+    #[test]
     fn test_autoshow_display_text_does_not_mutate_completion_insertions() {
         let replacement_completion = Completion::new(
             L!("test_autoshow/stable/test2.txt").to_owned(),
@@ -7974,6 +8172,81 @@ mod tests {
 
         assert_eq!(highlight_prefix_match, L!("te"));
         assert_eq!(display, vec![L!("test2").to_owned()]);
+    }
+
+    #[test]
+    fn test_autoshow_display_text_reconstructs_replace_token_suffix() {
+        let completion = Completion::new(
+            L!("ext").to_owned(),
+            WString::new(),
+            StringFuzzyMatch::exact_match(),
+            CompleteFlags::REPLACES_TOKEN,
+        );
+        let completions = vec![completion];
+        let cmd = L!("cat test_autoshow/issue4/cont");
+        let (display, highlight_prefix_match) =
+            autoshow_display_completions_for_cursor(cmd, cmd.len(), &completions);
+
+        assert_eq!(highlight_prefix_match, L!("cont"));
+        assert_eq!(display, vec![L!("context").to_owned()]);
+    }
+
+    #[test]
+    fn test_autoshow_display_text_reconstructs_replace_token_suffix_without_path_separator() {
+        let completion = Completion::new(
+            L!("ext").to_owned(),
+            WString::new(),
+            StringFuzzyMatch::exact_match(),
+            CompleteFlags::REPLACES_TOKEN,
+        );
+        let completions = vec![completion];
+        let cmd = L!("cat cont");
+        let (display, highlight_prefix_match) =
+            autoshow_display_completions_for_cursor(cmd, cmd.len(), &completions);
+
+        assert_eq!(highlight_prefix_match, L!("cont"));
+        assert_eq!(display, vec![L!("context").to_owned()]);
+    }
+
+    #[test]
+    fn test_autoshow_display_text_respects_case_insensitive_prefix_match() {
+        let mut completion = Completion::new(
+            L!("Bdir/").to_owned(),
+            WString::new(),
+            StringFuzzyMatch::exact_match(),
+            CompleteFlags::REPLACES_TOKEN,
+        );
+        completion.r#match.case_fold = CaseSensitivity::Insensitive;
+        let completions = vec![completion];
+        let cmd = L!("cd b");
+        let (display, highlight_prefix_match) =
+            autoshow_display_completions_for_cursor(cmd, cmd.len(), &completions);
+
+        assert_eq!(highlight_prefix_match, L!("b"));
+        assert_eq!(display, vec![L!("Bdir/").to_owned()]);
+    }
+
+    #[test]
+    fn test_autoshow_display_text_does_not_prefix_option_replacements() {
+        let completion = Completion::new(
+            L!("--color").to_owned(),
+            WString::new(),
+            StringFuzzyMatch::exact_match(),
+            CompleteFlags::REPLACES_TOKEN,
+        );
+        let completions = vec![completion];
+        let cmd = L!("cmd -c");
+        let (display, highlight_prefix_match) =
+            autoshow_display_completions_for_cursor(cmd, cmd.len(), &completions);
+
+        assert_eq!(highlight_prefix_match, L!("-c"));
+        assert_eq!(display, vec![L!("--color").to_owned()]);
+    }
+
+    #[test]
+    fn test_autoshow_token_at_cursor_for_single_char_argument() {
+        let cmd = L!("t c");
+        assert_eq!(autoshow_token_at_cursor(cmd, cmd.len()), L!("c"));
     }
 
     #[test]

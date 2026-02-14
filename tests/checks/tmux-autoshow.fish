@@ -36,6 +36,8 @@ isolated-tmux-start -C '
         set n (printf "%03d" $i)
         touch test_autoshow/stable/test2suffix$n
     end
+    mkdir -p test_autoshow/history_case/context
+    touch test_autoshow/history_case/contrib
 
 
     # Dataset for "tab completion ambiguous list" behavior.
@@ -70,6 +72,8 @@ isolated-tmux-start -C '
     # Seed history so the blocklist-clearing test can take a history-fast path if applicable.
     # (We do not assert autosuggestion text; we only need this to make the codepath possible.)
     history append "blockedcmd test_autoshow/dirA/"
+    # Seed history so autoshow can take the whole-history path while still showing completions.
+    history append "cat test_autoshow/history_case/context/"
 '
 
 tmux-sleep
@@ -314,7 +318,31 @@ isolated-tmux send-keys C-c
 isolated-tmux send-keys 'cd ../..' Enter
 tmux-sleep
 
-# Test 7 (Missing Test #6): Autoshow parser for subcommands renders command-substitution subcommand completions
+# Test 7: Whole-history autoshow path preserves full display candidates
+isolated-tmux send-keys C-c
+isolated-tmux send-keys C-u
+isolated-tmux send-keys C-l
+tmux-sleep
+
+isolated-tmux send-keys 'cat test_autoshow/history_case/co'
+tmux-sleep
+tmux-sleep
+sleep-until 'isolated-tmux capture-pane -p | grep -Eq "^prompt [0-9]+> cat test_autoshow/history_case/co"'
+
+if not __pane_has_token context/
+    echo 'autoshow-history-display-full-items: FAIL (missing context/)'
+else if not __pane_has_token contrib
+    echo 'autoshow-history-display-full-items: FAIL (missing contrib)'
+else if __pane_has_token ntext/
+    echo 'autoshow-history-display-full-items: FAIL (suffix-only ntext/)'
+else if __pane_has_token ntrib
+    echo 'autoshow-history-display-full-items: FAIL (suffix-only ntrib)'
+else
+    echo 'autoshow-history-display-full-items: OK'
+end
+# CHECK: autoshow-history-display-full-items: OK
+
+# Test 8 (Missing Test #6): Autoshow parser for subcommands renders command-substitution subcommand completions
 # The completion list for the subcommand position should include both literal and generated candidates.
 isolated-tmux send-keys C-c
 isolated-tmux send-keys C-u
@@ -340,7 +368,7 @@ __pane_print_token commit
 __pane_print_token dummy_subcmd001
 # CHECK: dummy_subcmd001
 
-# Test 8: Blocklist clears an already-visible autoshow pager (stale candidates must disappear)
+# Test 9: Blocklist clears an already-visible autoshow pager (stale candidates must disappear)
 #
 # This is specifically meant to catch the case where autoshow stops producing updates (e.g. returns early
 # via history) but the pager is not explicitly cleared and stale candidates remain on screen.
@@ -378,7 +406,7 @@ else
 end
 # CHECK: autoshow-blocklist-clears: OK
 
-# Test 9: History builtin in autoshow completion command substitution is threadsafe
+# Test 10: History builtin in autoshow completion command substitution is threadsafe
 # Trigger autoshow on a command with command-substitution completions that call `builtin history`,
 # then verify the marker was appended and fish remains responsive.
 isolated-tmux send-keys C-c
@@ -398,7 +426,7 @@ sleep-until '__pane_has_token autoshow-history-probe-hit'
 __pane_print_token autoshow-history-probe-hit
 # CHECK: autoshow-history-probe-hit
 
-# Test 10: Editing an existing command to prepend sudo does not crash fish
+# Test 11: Editing an existing command to prepend sudo does not crash fish
 isolated-tmux send-keys C-c
 isolated-tmux send-keys C-u
 isolated-tmux send-keys C-l
