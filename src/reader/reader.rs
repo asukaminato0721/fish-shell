@@ -5380,6 +5380,38 @@ fn autoshow_display_completions_for_cursor(
     (display_completions, file_part.to_owned())
 }
 
+fn autoshow_blocklist_command_token(command_line: &wstr, cursor_pos: usize) -> WString {
+    let process_range = parse_util_process_extent(command_line, cursor_pos, None);
+    tok_command(&command_line[process_range])
+}
+
+fn autoshow_command_basename(command: &wstr) -> &wstr {
+    if let Some(idx) = command.chars().rposition(|c| c == '/') {
+        if idx + 1 < command.len() {
+            return &command[idx + 1..];
+        }
+    }
+    command
+}
+
+fn autoshow_blocklist_matches_command(blocklist: &[WString], command: &wstr) -> bool {
+    if command.is_empty() {
+        return false;
+    }
+    let command_base = autoshow_command_basename(command);
+    blocklist.iter().any(|entry| {
+        if entry.is_empty() {
+            return false;
+        }
+        let entry: &wstr = entry;
+        let entry_base = autoshow_command_basename(entry);
+        entry == command
+            || entry == command_base
+            || entry_base == command
+            || entry_base == command_base
+    })
+}
+
 fn get_autosuggestion_performer(
     parser: &Parser,
     command_line: WString,
@@ -5399,16 +5431,9 @@ fn get_autosuggestion_performer(
         let mut want_autoshow_pager = want_autoshow;
         if want_autoshow_pager {
             if let Some(blocklist) = vars.get(L!("fish_autoshow_blocklist")) {
-                let mut tokens = vec![];
-                parse_util_process_extent(&command_line, cursor_pos, Some(&mut tokens));
-                if let Some(first) = tokens.first() {
-                    if first.type_ == TokenType::String {
-                        let cmd = first.get_source(&command_line);
-                        // Check if the command is in the blocklist.
-                        if blocklist.as_list().iter().any(|s| s == cmd) {
-                            want_autoshow_pager = false;
-                        }
-                    }
+                let cmd = autoshow_blocklist_command_token(&command_line, cursor_pos);
+                if autoshow_blocklist_matches_command(blocklist.as_list(), &cmd) {
+                    want_autoshow_pager = false;
                 }
             }
         }
@@ -7949,5 +7974,83 @@ mod tests {
 
         assert_eq!(highlight_prefix_match, L!("te"));
         assert_eq!(display, vec![L!("test2").to_owned()]);
+    }
+
+    #[test]
+    fn test_autoshow_blocklist_command_token_skips_assignments() {
+        let line = L!("FOO=bar BAZ=qux /usr/bin/git status");
+        assert_eq!(
+            autoshow_blocklist_command_token(line, line.len()),
+            L!("/usr/bin/git")
+        );
+
+        let line = L!("echo hi; FOO=bar ./git status");
+        assert_eq!(
+            autoshow_blocklist_command_token(line, line.len()),
+            L!("./git")
+        );
+    }
+
+    #[test]
+    fn test_autoshow_blocklist_matches_command_basename() {
+        let blocklist = vec![L!("git").to_owned()];
+        assert!(autoshow_blocklist_matches_command(&blocklist, L!("git")));
+        assert!(autoshow_blocklist_matches_command(
+            &blocklist,
+            L!("/usr/bin/git")
+        ));
+        assert!(autoshow_blocklist_matches_command(&blocklist, L!("./git")));
+        assert!(!autoshow_blocklist_matches_command(&blocklist, L!("gitk")));
+
+        let blocklist = vec![L!("/usr/bin/git").to_owned()];
+        assert!(autoshow_blocklist_matches_command(&blocklist, L!("git")));
+    }
+
+    #[test]
+    #[serial]
+    fn test_autoshow_blocklist_suppresses_path_command_by_basename() {
+        let _cleanup = test_init();
+        let parser = TestParser::new();
+
+        let test_dir = unique_test_dir("autoshow_blocklist_basename");
+        std::fs::remove_dir_all(&test_dir).ok();
+        std::fs::create_dir_all(&test_dir).unwrap();
+        std::fs::write(format!("{}/file_one", test_dir), "").unwrap();
+        parser.pushd(&test_dir);
+
+        let hist_name = unique_history_name(L!("autoshow_blocklist_basename_history"));
+        let history = History::with_name(&hist_name);
+        history.clear();
+
+        let cmd = L!("/bin/cat ");
+        let performer =
+            get_autosuggestion_performer(&parser, cmd.to_owned(), cmd.len(), history.clone(), true);
+        let unblocked = performer();
+        assert!(
+            !unblocked.cheap_completions.is_empty(),
+            "expected autoshow completions for /bin/cat when blocklist is unset"
+        );
+
+        parser.set_one(
+            L!("fish_autoshow_blocklist"),
+            ParserEnvSetMode::new(EnvMode::GLOBAL),
+            L!("cat").to_owned(),
+        );
+        let performer =
+            get_autosuggestion_performer(&parser, cmd.to_owned(), cmd.len(), history.clone(), true);
+        let blocked = performer();
+        assert!(
+            blocked.cheap_completions.is_empty(),
+            "expected autoshow completions to be suppressed by blocklist basename match"
+        );
+
+        let _ = parser.set_var(
+            L!("fish_autoshow_blocklist"),
+            ParserEnvSetMode::new(EnvMode::GLOBAL),
+            vec![],
+        );
+        parser.popd();
+        history.clear();
+        std::fs::remove_dir_all(&test_dir).ok();
     }
 }
