@@ -40,6 +40,14 @@ This shows completions (like options, files, and history) automatically as you t
 without having to press :kbd:`tab`. It works even after a space or when backspacing,
 and updates asynchronously to stay responsive.
 
+If you prefer to hide autoshow while typing command names (for example ``git`` or ``nvim``),
+you can disable command-position autoshow while keeping autoshow for subcommands and arguments::
+
+  set -g fish_autoshow_complete_commands 0
+
+With this setting, typing ``git`` will not show the pager, but typing ``git `` can still show
+subcommands like ``commit`` or ``add``.
+
 If you find that this feature is too slow for certain commands (for example, git completions
 can be resource-intensive), you can disable it for those specific commands by adding them to the
 ``$fish_autoshow_blocklist`` variable::

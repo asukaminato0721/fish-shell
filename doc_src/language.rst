@@ -1586,6 +1586,13 @@ You can change the settings of fish by changing the values of certain variables.
    This also works when :envvar:`fish_autosuggestion_enabled` is 0,
    if you only want the live completion list.
 
+.. envvar:: fish_autoshow_complete_commands
+
+   controls whether autoshow should appear while typing the command token itself.
+   Set it to 0 to suppress autoshow at command position (for example while typing ``git``),
+   while still allowing autoshow for subcommands and arguments after a space.
+   Set it to 1 to keep command-position autoshow enabled (the default).
+
 .. envvar:: fish_autoshow_blocklist
 
    list of commands for which the autoshow completion pager should be suppressed.

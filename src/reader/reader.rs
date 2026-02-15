@@ -5394,6 +5394,41 @@ fn autoshow_blocklist_command_token(command_line: &wstr, cursor_pos: usize) -> W
     tok_command(&command_line[process_range])
 }
 
+fn autoshow_cursor_in_command_position(command_line: &wstr, cursor_pos: usize) -> bool {
+    let cursor_pos = cursor_pos.min(command_line.len());
+
+    // Mirror completion parsing: if the cursor is past trailing spaces, backtrack so we can resolve
+    // the active process.
+    let mut position_in_statement = cursor_pos;
+    while position_in_statement > 0 && command_line.char_at(position_in_statement - 1) == ' ' {
+        position_in_statement -= 1;
+    }
+
+    let mut tokens = Vec::new();
+    parse_util_process_extent(command_line, position_in_statement, Some(&mut tokens));
+
+    // Skip variable assignments that appear before the cursor.
+    let mut assignment_count = 0;
+    for tok in &tokens {
+        if tok.location_in_or_at_end_of_source_range(cursor_pos) {
+            break;
+        }
+        if variable_assignment_equals_pos(tok.get_source(command_line)).is_none() {
+            break;
+        }
+        assignment_count += 1;
+    }
+    tokens.drain(..assignment_count);
+
+    let Some(cmd_tok) = tokens.first() else {
+        return true;
+    };
+    if cmd_tok.type_ != TokenType::String {
+        return false;
+    }
+    cmd_tok.location_in_or_at_end_of_source_range(cursor_pos)
+}
+
 fn autoshow_command_basename(command: &wstr) -> &wstr {
     if let Some(idx) = command.chars().rposition(|c| c == '/') {
         if idx + 1 < command.len() {
@@ -5438,6 +5473,13 @@ fn get_autosuggestion_performer(
 
         // Check blocklist to see if we should suppress autoshow for this command.
         let mut want_autoshow_pager = want_autoshow;
+        if want_autoshow_pager {
+            let complete_commands = check_bool_var(&vars, L!("fish_autoshow_complete_commands"), true);
+            if !complete_commands && autoshow_cursor_in_command_position(&command_line, cursor_pos)
+            {
+                want_autoshow_pager = false;
+            }
+        }
         if want_autoshow_pager {
             if let Some(blocklist) = vars.get(L!("fish_autoshow_blocklist")) {
                 let cmd = autoshow_blocklist_command_token(&command_line, cursor_pos);
@@ -8250,6 +8292,21 @@ mod tests {
     }
 
     #[test]
+    fn test_autoshow_cursor_in_command_position_detects_command_token() {
+        let cmd = L!("git");
+        assert!(autoshow_cursor_in_command_position(cmd, cmd.len()));
+
+        let cmd = L!("git ");
+        assert!(!autoshow_cursor_in_command_position(cmd, cmd.len()));
+
+        let cmd = L!("FOO=bar ./git");
+        assert!(autoshow_cursor_in_command_position(cmd, cmd.len()));
+
+        let cmd = L!("git status");
+        assert!(!autoshow_cursor_in_command_position(cmd, cmd.len()));
+    }
+
+    #[test]
     fn test_autoshow_blocklist_command_token_skips_assignments() {
         let line = L!("FOO=bar BAZ=qux /usr/bin/git status");
         assert_eq!(
@@ -8277,6 +8334,75 @@ mod tests {
 
         let blocklist = vec![L!("/usr/bin/git").to_owned()];
         assert!(autoshow_blocklist_matches_command(&blocklist, L!("git")));
+    }
+
+    #[test]
+    #[serial]
+    fn test_autoshow_complete_commands_suppresses_command_token_only() {
+        let _cleanup = test_init();
+        let parser = TestParser::new();
+
+        let hist_name = unique_history_name(L!("autoshow_complete_commands_history"));
+        let history = History::with_name(&hist_name);
+        history.clear();
+
+        let eval_res = parser.eval(L!("function autoshowgatecmd; end"), &IoChain::new());
+        assert!(eval_res.status.is_success());
+        let eval_res = parser.eval(
+            L!("complete -c autoshowgatecmd -f -a 'alpha beta'"),
+            &IoChain::new(),
+        );
+        assert!(eval_res.status.is_success());
+
+        let cmd = L!("autoshowgate");
+        let performer =
+            get_autosuggestion_performer(&parser, cmd.to_owned(), cmd.len(), history.clone(), true);
+        let command_allowed = performer();
+        assert!(
+            !command_allowed.cheap_completions.is_empty(),
+            "expected command-position autoshow completions when fish_autoshow_complete_commands is enabled"
+        );
+
+        parser.set_one(
+            L!("fish_autoshow_complete_commands"),
+            ParserEnvSetMode::new(EnvMode::GLOBAL),
+            L!("0").to_owned(),
+        );
+        let performer =
+            get_autosuggestion_performer(&parser, cmd.to_owned(), cmd.len(), history.clone(), true);
+        let command_suppressed = performer();
+        assert!(
+            command_suppressed.cheap_completions.is_empty(),
+            "expected command-position autoshow completions to be suppressed when fish_autoshow_complete_commands=0"
+        );
+
+        let cmd = L!("autoshowgatecmd ");
+        let performer =
+            get_autosuggestion_performer(&parser, cmd.to_owned(), cmd.len(), history.clone(), true);
+        let argument_result = performer();
+        assert!(
+            !argument_result.cheap_completions.is_empty(),
+            "expected argument-position autoshow completions to remain enabled when fish_autoshow_complete_commands=0"
+        );
+        let completions: Vec<String> = argument_result
+            .cheap_completions
+            .iter()
+            .map(|c| c.completion.to_string())
+            .collect();
+        assert!(
+            completions.iter().any(|c| c == "alpha"),
+            "expected custom argument completion 'alpha', got: {:?}",
+            completions
+        );
+
+        let _ = parser.eval(L!("complete -e -c autoshowgatecmd"), &IoChain::new());
+        let _ = parser.eval(L!("functions -e autoshowgatecmd"), &IoChain::new());
+        let _ = parser.set_var(
+            L!("fish_autoshow_complete_commands"),
+            ParserEnvSetMode::new(EnvMode::GLOBAL),
+            vec![],
+        );
+        history.clear();
     }
 
     #[test]
