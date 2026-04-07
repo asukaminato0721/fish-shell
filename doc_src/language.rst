@@ -1599,6 +1599,14 @@ You can change the settings of fish by changing the values of certain variables.
    This is useful for commands with slow completion scripts (for example, ``git``).
    Autosuggestions (ghost text) still work even when a command is blocklisted.
 
+.. envvar:: fish_autoshow_completion_limit
+
+   controls how many completion candidates autoshow surfaces at once.
+   The default is 40. Set it to a positive number to cap autoshow to that many items,
+   or set it to 0 to show every autoshow completion candidate that fish computed.
+   Autoshow uses that capped list as its fully expanded pager view, so pressing :kbd:`tab`
+   will navigate the existing autoshow list instead of expanding it further.
+
 .. envvar:: fish_transient_prompt
 
    If this is set to 1, fish will redraw prompts with a ``--final-rendering`` argument before running a commandline, allowing you to change it before pushing it to the scrollback. This enables :ref:`transient prompts <transient-prompt>`.

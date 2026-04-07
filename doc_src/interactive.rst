@@ -57,6 +57,14 @@ can be resource-intensive), you can disable it for those specific commands by ad
 This will prevent the completion pager from automatically appearing for ``git``, while still
 allowing standard autosuggestions (ghost text) from history to work.
 
+If you want autoshow to surface fewer or more candidates at once, set
+``$fish_autoshow_completion_limit``::
+
+  set -g fish_autoshow_completion_limit 20
+
+Autoshow treats that list as already fully expanded. Set it to ``0`` if you want autoshow to
+show every completion candidate that fish computed.
+
 .. _tab-completion:
 
 Tab Completion

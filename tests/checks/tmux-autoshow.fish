@@ -39,7 +39,6 @@ isolated-tmux-start -C '
     mkdir -p test_autoshow/history_case/context
     touch test_autoshow/history_case/contrib
 
-
     # Dataset for "tab completion ambiguous list" behavior.
     mkdir -p test_autoshow/tab_ambig/collection
     touch test_autoshow/tab_ambig/collection-plan.docx
@@ -318,7 +317,27 @@ isolated-tmux send-keys C-c
 isolated-tmux send-keys 'cd ../..' Enter
 tmux-sleep
 
-# Test 7: Whole-history autoshow path preserves full display candidates
+# Test 7: Fuzzy interior matches display full items without prefixing typed characters
+isolated-tmux send-keys C-c
+isolated-tmux send-keys C-u
+isolated-tmux send-keys C-l
+tmux-sleep
+
+isolated-tmux send-keys 'autoshowcmd om'
+tmux-sleep
+tmux-sleep
+sleep-until '__pane_has_token commit'
+
+if not __pane_has_token commit
+    echo 'autoshow-fuzzy-display-full-items: FAIL (missing commit)'
+else if __pane_has_token omcommit
+    echo 'autoshow-fuzzy-display-full-items: FAIL (prefixed omcommit)'
+else
+    echo 'autoshow-fuzzy-display-full-items: OK'
+end
+# CHECK: autoshow-fuzzy-display-full-items: OK
+
+# Test 8: Whole-history autoshow path preserves full display candidates
 isolated-tmux send-keys C-c
 isolated-tmux send-keys C-u
 isolated-tmux send-keys C-l
@@ -342,7 +361,7 @@ else
 end
 # CHECK: autoshow-history-display-full-items: OK
 
-# Test 8 (Missing Test #6): Autoshow parser for subcommands renders command-substitution subcommand completions
+# Test 9 (Missing Test #6): Autoshow parser for subcommands renders command-substitution subcommand completions
 # The completion list for the subcommand position should include both literal and generated candidates.
 isolated-tmux send-keys C-c
 isolated-tmux send-keys C-u
@@ -368,7 +387,49 @@ __pane_print_token commit
 __pane_print_token dummy_subcmd001
 # CHECK: dummy_subcmd001
 
-# Test 9: Blocklist clears an already-visible autoshow pager (stale candidates must disappear)
+# Test 10: Autoshow Tab navigation keeps the capped menu stable
+#
+# autoshowcmd has 42 subcommand completions. Autoshow is capped at 40 items, so the initial menu
+# should omit the tail entries. Tab should begin navigating that already-maximized autoshow pager
+# without expanding it on the first or second press.
+isolated-tmux send-keys C-c
+isolated-tmux send-keys C-u
+isolated-tmux send-keys C-l
+tmux-sleep
+
+isolated-tmux send-keys 'autoshowcmd '
+tmux-sleep
+sleep-until '__pane_has_token add'
+sleep-until '__pane_has_token dummy_subcmd001'
+
+set -l autoshow_menu_before (__pane_tokens | grep -E '^(add|commit|dummy_subcmd[0-9]{3})$' | sort -u | string join ' ')
+
+isolated-tmux send-keys Tab
+tmux-sleep
+sleep-until 'isolated-tmux capture-pane -p | grep -Eq "^prompt [0-9]+> autoshowcmd add ?\$"'
+
+set -l autoshow_menu_after (__pane_tokens | grep -E '^(add|commit|dummy_subcmd[0-9]{3})$' | sort -u | string join ' ')
+
+if test "$autoshow_menu_before" = "$autoshow_menu_after"
+    echo 'autoshow-first-tab-keeps-menu: OK'
+else
+    echo 'autoshow-first-tab-keeps-menu: FAIL (first Tab changed visible menu)'
+end
+# CHECK: autoshow-first-tab-keeps-menu: OK
+
+isolated-tmux send-keys Tab
+tmux-sleep
+
+set -l autoshow_menu_after_second_tab (__pane_tokens | grep -E '^(add|commit|dummy_subcmd[0-9]{3})$' | sort -u | string join ' ')
+
+if test "$autoshow_menu_before" = "$autoshow_menu_after_second_tab"
+    echo 'autoshow-second-tab-keeps-menu: OK'
+else
+    echo 'autoshow-second-tab-keeps-menu: FAIL (second Tab changed visible menu)'
+end
+# CHECK: autoshow-second-tab-keeps-menu: OK
+
+# Test 11: Blocklist clears an already-visible autoshow pager (stale candidates must disappear)
 #
 # This is specifically meant to catch the case where autoshow stops producing updates (e.g. returns early
 # via history) but the pager is not explicitly cleared and stale candidates remain on screen.
@@ -406,7 +467,7 @@ else
 end
 # CHECK: autoshow-blocklist-clears: OK
 
-# Test 10: History builtin in autoshow completion command substitution is threadsafe
+# Test 12: History builtin in autoshow completion command substitution is threadsafe
 # Trigger autoshow on a command with command-substitution completions that call `builtin history`,
 # then verify the marker was appended and fish remains responsive.
 isolated-tmux send-keys C-c
@@ -426,7 +487,7 @@ sleep-until '__pane_has_token autoshow-history-probe-hit'
 __pane_print_token autoshow-history-probe-hit
 # CHECK: autoshow-history-probe-hit
 
-# Test 11: Editing an existing command to prepend sudo does not crash fish
+# Test 13: Editing an existing command to prepend sudo does not crash fish
 isolated-tmux send-keys C-c
 isolated-tmux send-keys C-u
 isolated-tmux send-keys C-l
