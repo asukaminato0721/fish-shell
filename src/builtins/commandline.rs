@@ -18,6 +18,7 @@ use crate::reader::{
     commandline_get_state, commandline_set_buffer, commandline_set_search_field,
     reader_execute_readline_cmd, reader_showing_suggestion,
 };
+use crate::threads::is_main_thread;
 use crate::tokenizer::TOK_ACCEPT_UNFINISHED;
 use crate::tokenizer::{TokenType, Tokenizer};
 use crate::wcstringutil::join_strings;
@@ -238,7 +239,7 @@ fn write_part(
 
 /// The commandline builtin. It is used for specifying a new value for the commandline.
 pub fn commandline(parser: &Parser, streams: &mut IoStreams, args: &mut [&wstr]) -> BuiltinResult {
-    let rstate = commandline_get_state(true);
+    let rstate = commandline_get_state(is_main_thread());
 
     let mut buffer_part = None;
     let mut cut_at_cursor = false;
