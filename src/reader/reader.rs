@@ -7302,10 +7302,10 @@ mod tests {
                 let mut cursor_pos = in_cursor_pos;
 
                 let result = completion_apply_to_command_line(
-                    &OperationContext::test_only_foreground(
+                    &OperationContext::foreground(
                         &parser,
-                        parser.vars(),
                         Box::new(no_cancel),
+                        crate::operation_context::EXPANSION_LIMIT_DEFAULT,
                     ),
                     completion,
                     $flags,
