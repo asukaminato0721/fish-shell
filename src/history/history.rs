@@ -1386,7 +1386,6 @@ impl History {
         case_sensitive: bool,
         null_terminate: bool,
         reverse: bool,
-        cancel_check: &CancelChecker,
         color_enabled: bool,
     ) -> bool {
         let mut remaining = max_items;
@@ -1420,6 +1419,8 @@ impl History {
             }
             ControlFlow::Continue(())
         };
+
+        let cancel_check = &parser.context().cancel_checker;
 
         if search_args.is_empty() {
             // The user had no search terms; just append everything.

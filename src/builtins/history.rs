@@ -288,7 +288,6 @@ pub fn history(parser: &Parser, streams: &mut IoStreams, args: &mut [&wstr]) -> 
                 opts.case_sensitive,
                 opts.null_terminate,
                 opts.reverse,
-                &parser.context().cancel_checker,
                 opts.color.enabled(streams),
             ) {
                 status = Err(STATUS_CMD_ERROR);
