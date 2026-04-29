@@ -126,9 +126,10 @@ impl LockedFile {
         {
             // Cygwin's `flock` is currently not thread safe (#11933)
             #[cfg(cygwin)]
-            static FLOCK_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-            #[cfg(cygwin)]
-            let _lock = FLOCK_LOCK.lock().unwrap();
+            let _lock = {
+                static FLOCK_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+                FLOCK_LOCK.lock().unwrap()
+            };
 
             // Try locking the directory. Retry if locking was interrupted.
             while unsafe { libc::flock(dir_fd.as_raw_fd(), locking_mode.flock_op()) } == -1 {

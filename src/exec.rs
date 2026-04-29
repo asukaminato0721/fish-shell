@@ -54,6 +54,7 @@ use nix::{
     sys::stat,
     unistd::{getpgrp, getpid},
 };
+use std::sync::LazyLock;
 use std::{
     ffi::CStr,
     io::{Read as _, Write as _},
@@ -62,7 +63,7 @@ use std::{
     os::fd::{AsRawFd as _, FromRawFd as _, OwnedFd, RawFd},
     slice,
     sync::{
-        Arc, OnceLock,
+        Arc,
         atomic::{AtomicUsize, Ordering},
     },
 };
@@ -72,9 +73,10 @@ use std::{
 /// to their target fds.
 /// TODO: this IO could be multiplexed using FdMonitor.
 fn exec_thread_pool() -> &'static Arc<ThreadPool> {
-    static EXEC_THREAD_POOL: OnceLock<Arc<ThreadPool>> = OnceLock::new();
     // Use an unbounded queue because otherwise we risk deadlock.
-    EXEC_THREAD_POOL.get_or_init(|| ThreadPool::new(1, usize::MAX))
+    static EXEC_THREAD_POOL: LazyLock<Arc<ThreadPool>> =
+        LazyLock::new(|| ThreadPool::new(1, usize::MAX));
+    &EXEC_THREAD_POOL
 }
 
 /// Execute the processes specified by `j` in the parser \p.

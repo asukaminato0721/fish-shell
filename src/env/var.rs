@@ -130,13 +130,12 @@ pub struct EnvVar {
 
 impl Default for EnvVar {
     fn default() -> Self {
-        use std::sync::OnceLock;
+        use std::sync::LazyLock;
         /// A shared read-only empty list.
-        static EMPTY_LIST: OnceLock<Arc<[WString]>> = OnceLock::new();
-        let empty_list = EMPTY_LIST.get_or_init(|| Arc::new([]));
+        static EMPTY_LIST: LazyLock<Arc<[WString]>> = LazyLock::new(|| Arc::new([]));
 
         EnvVar {
-            values: Arc::clone(empty_list),
+            values: Arc::clone(&*EMPTY_LIST),
             flags: EnvVarFlags::empty(),
         }
     }

@@ -57,10 +57,9 @@ impl<'a> OperationContext<'a> {
 
     // Return an "empty" context which contains no variables, no parser, and never cancels.
     pub fn empty() -> OperationContext<'static> {
-        use std::sync::OnceLock;
-        static NULL_ENV: OnceLock<EnvStack> = OnceLock::new();
-        let null_env = NULL_ENV.get_or_init(EnvStack::new);
-        OperationContext::background(null_env, EXPANSION_LIMIT_DEFAULT)
+        use std::sync::LazyLock;
+        static NULL_ENV: LazyLock<EnvStack> = LazyLock::new(EnvStack::new);
+        OperationContext::background(&*NULL_ENV, EXPANSION_LIMIT_DEFAULT)
     }
 
     // Return an operation context that contains only global variables, no parser, and never

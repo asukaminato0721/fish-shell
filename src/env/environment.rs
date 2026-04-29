@@ -405,14 +405,14 @@ impl EnvStack {
     /// A variable stack that only represents globals.
     /// Do not push or pop from this.
     pub fn globals() -> &'static EnvStack {
-        use std::sync::OnceLock;
-        static GLOBALS: OnceLock<EnvStack> = OnceLock::new();
-        GLOBALS.get_or_init(|| EnvStack {
+        use std::sync::LazyLock;
+        static GLOBALS: LazyLock<EnvStack> = LazyLock::new(|| EnvStack {
             inner: EnvStackImpl::new(),
             can_push_pop: false,
             // Do not dispatch variable changes - this is used at startup when we are importing env vars.
             dispatches_var_changes: false,
-        })
+        });
+        &GLOBALS
     }
 
     pub fn set_argv(&self, argv: Vec<WString>, is_repainting: bool) {

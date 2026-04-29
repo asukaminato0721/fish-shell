@@ -27,13 +27,10 @@ use std::sync::{Arc, Mutex, MutexGuard, atomic::Ordering};
 /// Getter for universal variables.
 /// This is typically initialized in env_init(), and is considered empty before then.
 pub fn uvars() -> MutexGuard<'static, EnvUniversal> {
-    use std::sync::OnceLock;
+    use std::sync::LazyLock;
     /// Universal variables instance.
-    static UVARS: OnceLock<Mutex<EnvUniversal>> = OnceLock::new();
-    UVARS
-        .get_or_init(|| Mutex::new(EnvUniversal::new()))
-        .lock()
-        .unwrap()
+    static UVARS: LazyLock<Mutex<EnvUniversal>> = LazyLock::new(|| Mutex::new(EnvUniversal::new()));
+    UVARS.lock().unwrap()
 }
 
 /// Whether we were launched with no_config; in this case setting a uvar instead sets a global.
