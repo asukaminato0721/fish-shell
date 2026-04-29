@@ -5116,18 +5116,18 @@ pub fn reader_write_title(
     }
 }
 
-impl<'a> Reader<'a> {
-    fn exec_prompt_cmd(&self, prompt_cmd: &wstr, final_prompt: bool) -> Vec<WString> {
-        let mut output = vec![];
-        let prompt_cmd = if final_prompt && function::exists(prompt_cmd, self.parser) {
-            Cow::Owned(prompt_cmd.to_owned() + L!(" --final-rendering"))
-        } else {
-            Cow::Borrowed(prompt_cmd)
-        };
-        let _ = exec_subshell(&prompt_cmd, self.parser, Some(&mut output), false);
-        output
-    }
+fn exec_prompt_cmd(parser: &Parser, prompt_cmd: &wstr, final_prompt: bool) -> Vec<WString> {
+    let mut output = vec![];
+    let prompt_cmd = if final_prompt && function::exists(prompt_cmd, parser) {
+        Cow::Owned(prompt_cmd.to_owned() + L!(" --final-rendering"))
+    } else {
+        Cow::Borrowed(prompt_cmd)
+    };
+    let _ = exec_subshell(&prompt_cmd, parser, Some(&mut output), false);
+    output
+}
 
+impl<'a> Reader<'a> {
     /// Execute prompt commands based on the provided arguments. The output is inserted into prompt_buff.
     fn exec_prompt(&mut self, full_prompt: bool, final_prompt: bool) {
         // Suppress fish_trace while in the prompt.
@@ -5147,8 +5147,11 @@ impl<'a> Reader<'a> {
         self.mode_prompt_buff.clear();
         if function::exists(MODE_PROMPT_FUNCTION_NAME, self.parser) {
             // We do not support multiline mode indicators, so just concatenate all of them.
-            self.mode_prompt_buff =
-                WString::from_iter(self.exec_prompt_cmd(MODE_PROMPT_FUNCTION_NAME, final_prompt));
+            self.mode_prompt_buff = WString::from_iter(exec_prompt_cmd(
+                self.parser,
+                MODE_PROMPT_FUNCTION_NAME,
+                final_prompt,
+            ));
         }
 
         if full_prompt {
@@ -5167,8 +5170,10 @@ impl<'a> Reader<'a> {
                     DEFAULT_PROMPT
                 };
 
-                self.left_prompt_buff =
-                    join_strings(&self.exec_prompt_cmd(prompt_cmd, final_prompt), '\n');
+                self.left_prompt_buff = join_strings(
+                    &exec_prompt_cmd(self.parser, prompt_cmd, final_prompt),
+                    '\n',
+                );
 
                 // Support the SHELL_PROMPT_PREFIX and SHELL_PROMPT_SUFFIX environment
                 // variables as standardized by systemd v257. Prepend the prefix and
@@ -5188,9 +5193,11 @@ impl<'a> Reader<'a> {
                     || function::exists(&self.conf.right_prompt_cmd, self.parser))
             {
                 // Right prompt does not support multiple lines, so just concatenate all of them.
-                self.right_prompt_buff = WString::from_iter(
-                    self.exec_prompt_cmd(&self.conf.right_prompt_cmd, final_prompt),
-                );
+                self.right_prompt_buff = WString::from_iter(exec_prompt_cmd(
+                    self.parser,
+                    &self.conf.right_prompt_cmd,
+                    final_prompt,
+                ));
             }
         }
 
