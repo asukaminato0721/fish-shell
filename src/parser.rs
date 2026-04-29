@@ -13,7 +13,6 @@ use crate::{
     expand::{ExpandFlags, ExpandResultCode, expand_string, replace_home_directory_with_tilde},
     flog, flogf, function,
     global_safety::RelaxedAtomicBool,
-    input_common::TerminalQuery,
     io::IoChain,
     job_group::MaybeJobId,
     operation_context::{EXPANSION_LIMIT_DEFAULT, OperationContext},
@@ -421,8 +420,6 @@ pub struct Parser {
     /// Global event blocks.
     pub global_event_blocks: AtomicU64,
 
-    pub blocking_query: RefCell<Option<TerminalQuery>>,
-
     // Timeout for blocking terminal queries.
     pub blocking_query_timeout: RefCell<Option<Duration>>,
 }
@@ -458,7 +455,6 @@ impl Parser {
             cancel_behavior,
             profile_items: RefCell::default(),
             global_event_blocks: AtomicU64::new(0),
-            blocking_query: RefCell::new(None),
             blocking_query_timeout: RefCell::new(None),
         };
 
