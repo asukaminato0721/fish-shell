@@ -1156,11 +1156,7 @@ fn format_history_record(
 
     let mut command = item.str().to_owned();
     if color_enabled {
-        command = bytes2wcstring(&highlight_and_colorize(
-            &command,
-            &parser.context(),
-            parser.vars(),
-        ));
+        command = bytes2wcstring(&highlight_and_colorize(&command, &parser.context()));
     }
 
     result.push_utfstr(&command);

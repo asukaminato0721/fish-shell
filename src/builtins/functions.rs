@@ -436,7 +436,6 @@ pub fn functions(parser: &Parser, streams: &mut IoStreams, args: &mut [&wstr]) -
             streams.out.append(&bytes2wcstring(&highlight_and_colorize(
                 &def,
                 &parser.context(),
-                parser.vars(),
             )));
         } else {
             streams.out.append(&def);

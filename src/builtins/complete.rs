@@ -231,7 +231,6 @@ fn builtin_complete_print(
         streams.out.append(&bytes2wcstring(&highlight_and_colorize(
             &repr,
             &parser.context(),
-            parser.vars(),
         )));
     } else {
         streams.out.append(&repr);

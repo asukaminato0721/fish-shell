@@ -107,11 +107,7 @@ pub fn highlight_shell(
     *color = highlighter.highlight();
 }
 
-pub fn highlight_and_colorize(
-    text: &wstr,
-    ctx: &OperationContext<'_>,
-    vars: &dyn Environment,
-) -> Vec<u8> {
+pub fn highlight_and_colorize(text: &wstr, ctx: &OperationContext<'_>) -> Vec<u8> {
     let mut colors = Vec::new();
     highlight_shell(
         text,
@@ -120,6 +116,7 @@ pub fn highlight_and_colorize(
         /*io_ok=*/ false,
         /*cursor=*/ None,
     );
+    let vars = ctx.vars();
     colorize(text, &colors, vars)
 }
 

@@ -173,7 +173,6 @@ fn abbr_show(opts: &Options, streams: &mut IoStreams, parser: &Parser) -> Builti
                 streams.out.append(&bytes2wcstring(&highlight_and_colorize(
                     &result,
                     &parser.context(),
-                    parser.vars(),
                 )));
             } else {
                 streams.out.append(&result);

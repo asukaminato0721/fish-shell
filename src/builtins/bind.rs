@@ -168,7 +168,6 @@ impl BuiltinBind {
                 streams.out.append(&bytes2wcstring(&highlight_and_colorize(
                     &out,
                     &parser.context(),
-                    parser.vars(),
                 )));
             } else {
                 streams.out.append(&out);

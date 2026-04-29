@@ -169,7 +169,6 @@ pub fn r#type(parser: &Parser, streams: &mut IoStreams, argv: &mut [&wstr]) -> B
                             streams.out.append(&bytes2wcstring(&highlight_and_colorize(
                                 &def,
                                 &parser.context(),
-                                parser.vars(),
                             )));
                         } else {
                             streams.out.append(&def);
