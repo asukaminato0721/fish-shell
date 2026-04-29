@@ -56,9 +56,7 @@ use crate::{
     trace::{trace_if_enabled, trace_if_enabled_with_args},
     wildcard::wildcard_match,
 };
-use fish_common::{
-    ScopeGuard, ScopeGuarding, ScopedRefCell, escape, help_section, truncate_at_nul,
-};
+use fish_common::{ScopeGuard, ScopeGuarding, escape, help_section, truncate_at_nul};
 use fish_widestring::WExt as _;
 use libc::{ENOTDIR, EXIT_SUCCESS, STDERR_FILENO, STDOUT_FILENO, c_int};
 use std::{io::ErrorKind, rc::Rc, sync::Arc};
@@ -81,17 +79,13 @@ pub enum EndExecutionReason {
     Error,
 }
 
-pub struct ExecutionContext<'a> {
+pub struct ExecutionContext {
     // The parsed source and its AST.
     pstree: ParsedSourceRef,
 
     // If set, one of our processes received a cancellation signal (INT or QUIT) so we are
     // unwinding.
     cancel_signal: Option<Signal>,
-
-    // The currently executing pipeline node.
-    // This is shared with the Parser so that the Parser can access the current line.
-    pipeline_node: &'a ScopedRefCell<Option<NodeRef<ast::JobPipeline>>>,
 
     /// The block IO chain.
     /// For example, in `begin; foo ; end < file.txt` this would have the 'file.txt' IO.
@@ -130,19 +124,17 @@ pub fn varname_error<'a>(command: &'a wstr, bad_name: &'a wstr) -> Error<'a> {
     .cmd(command)
 }
 
-impl<'a> ExecutionContext<'a> {
+impl ExecutionContext {
     /// Construct a context in preparation for evaluating a node in a tree, with the given block_io.
     /// The execution context may access the parser and parent job group (if any) through ctx.
     pub fn new(
         pstree: ParsedSourceRef,
         block_io: IoChain,
-        pipeline_node: &'a ScopedRefCell<Option<NodeRef<ast::JobPipeline>>>,
         test_only_suppress_stderr: bool,
     ) -> Self {
         Self {
             pstree,
             cancel_signal: None,
-            pipeline_node,
             block_io,
             test_only_suppress_stderr,
         }
@@ -155,7 +147,7 @@ impl<'a> ExecutionContext<'a> {
     pub fn eval_node(
         &mut self,
         ctx: &OperationContext<'_>,
-        node: &'a dyn Node,
+        node: &dyn Node,
         associated_block: Option<BlockId>,
     ) -> EndExecutionReason {
         match node.kind() {
@@ -170,7 +162,7 @@ impl<'a> ExecutionContext<'a> {
     fn eval_statement(
         &mut self,
         ctx: &OperationContext<'_>,
-        statement: &'a ast::Statement,
+        statement: &ast::Statement,
         associated_block: Option<BlockId>,
     ) -> EndExecutionReason {
         // Note we only expect block-style statements here. No not statements.
@@ -188,7 +180,7 @@ impl<'a> ExecutionContext<'a> {
     fn eval_job_list(
         &mut self,
         ctx: &OperationContext<'_>,
-        job_list: &'a ast::JobList,
+        job_list: &ast::JobList,
         associated_block: BlockId,
     ) -> EndExecutionReason {
         // Check for infinite recursion: a function which immediately calls itself..
@@ -391,12 +383,12 @@ impl<'a> ExecutionContext<'a> {
         self.node_source(node).to_owned()
     }
 
-    fn infinite_recursive_statement_in_job_list<'b>(
+    fn infinite_recursive_statement_in_job_list<'a>(
         &self,
         ctx: &OperationContext<'_>,
-        jobs: &'b ast::JobList,
+        jobs: &'a ast::JobList,
         out_func_name: &mut WString,
-    ) -> Option<&'b ast::DecoratedStatement> {
+    ) -> Option<&'a ast::DecoratedStatement> {
         // This is a bit fragile. It is a test to see if we are inside of function call, but
         // not inside a block in that function call. If, in the future, the rules for what
         // block scopes are pushed on function invocation changes, then this check will break.
@@ -423,7 +415,7 @@ impl<'a> ExecutionContext<'a> {
         let job = &jc.job;
 
         // Helper to return if a statement is infinitely recursive in this function.
-        let statement_recurses = |stat: &'b ast::Statement| -> Option<&'b ast::DecoratedStatement> {
+        let statement_recurses = |stat: &'a ast::Statement| -> Option<&'a ast::DecoratedStatement> {
             // Ignore non-decorated statements like `if`, etc.
             let Statement::Decorated(dc) = &stat else {
                 return None;
@@ -873,7 +865,7 @@ impl<'a> ExecutionContext<'a> {
     fn run_block_statement(
         &mut self,
         ctx: &OperationContext<'_>,
-        statement: &'a ast::BlockStatement,
+        statement: &ast::BlockStatement,
         associated_block: Option<BlockId>,
     ) -> EndExecutionReason {
         let bh = &statement.header;
@@ -891,8 +883,8 @@ impl<'a> ExecutionContext<'a> {
     fn run_for_statement(
         &mut self,
         ctx: &OperationContext<'_>,
-        header: &'a ast::ForHeader,
-        block_contents: &'a ast::JobList,
+        header: &ast::ForHeader,
+        block_contents: &ast::JobList,
     ) -> EndExecutionReason {
         // Get the variable name: `for var_name in ...`. We expand the variable name. It better result
         // in just one.
@@ -1000,7 +992,7 @@ impl<'a> ExecutionContext<'a> {
     fn run_if_statement(
         &mut self,
         ctx: &OperationContext<'_>,
-        statement: &'a ast::IfStatement,
+        statement: &ast::IfStatement,
         associated_block: Option<BlockId>,
     ) -> EndExecutionReason {
         let mut result = EndExecutionReason::Ok;
@@ -1090,7 +1082,7 @@ impl<'a> ExecutionContext<'a> {
     fn run_switch_statement(
         &mut self,
         ctx: &OperationContext<'_>,
-        statement: &'a ast::SwitchStatement,
+        statement: &ast::SwitchStatement,
     ) -> EndExecutionReason {
         // Get the switch variable.
         let switch_value = self.node_source_owned(&statement.argument);
@@ -1200,8 +1192,8 @@ impl<'a> ExecutionContext<'a> {
     fn run_while_statement(
         &mut self,
         ctx: &OperationContext<'_>,
-        header: &'a ast::WhileHeader,
-        contents: &'a ast::JobList,
+        header: &ast::WhileHeader,
+        contents: &ast::JobList,
         associated_block: Option<BlockId>,
     ) -> EndExecutionReason {
         let mut ret = EndExecutionReason::Ok;
@@ -1334,7 +1326,7 @@ impl<'a> ExecutionContext<'a> {
     fn run_begin_statement(
         &mut self,
         ctx: &OperationContext<'_>,
-        contents: &'a ast::JobList,
+        contents: &ast::JobList,
     ) -> EndExecutionReason {
         // Basic begin/end block. Push a scope block, run jobs, pop it
         trace_if_enabled(ctx.parser(), L!("begin"));
@@ -1535,7 +1527,7 @@ impl<'a> ExecutionContext<'a> {
     fn run_1_job(
         &mut self,
         ctx: &OperationContext<'_>,
-        job_node: &'a ast::JobPipeline,
+        job_node: &ast::JobPipeline,
         associated_block: Option<BlockId>,
     ) -> EndExecutionReason {
         if let Some(ret) = self.check_end_execution(ctx) {
@@ -1552,7 +1544,10 @@ impl<'a> ExecutionContext<'a> {
 
         // Save the executing node.
         let executing_node = NodeRef::new(Arc::clone(self.pstree()), job_node);
-        let _saved_node = self.pipeline_node.scoped_replace(Some(executing_node));
+        let _saved_node = ctx
+            .parser()
+            .current_node()
+            .scoped_replace(Some(executing_node));
 
         // Profiling support.
         let profile_item_id = ctx.parser().create_profile_item();
@@ -1706,7 +1701,7 @@ impl<'a> ExecutionContext<'a> {
     fn test_and_run_1_job_conjunction(
         &mut self,
         ctx: &OperationContext<'_>,
-        jc: &'a ast::JobConjunction,
+        jc: &ast::JobConjunction,
         associated_block: Option<BlockId>,
     ) -> EndExecutionReason {
         // Test this job conjunction if it has an 'and' or 'or' decorator.
@@ -1741,7 +1736,7 @@ impl<'a> ExecutionContext<'a> {
     fn run_job_conjunction(
         &mut self,
         ctx: &OperationContext<'_>,
-        job_expr: &'a ast::JobConjunction,
+        job_expr: &ast::JobConjunction,
         associated_block: Option<BlockId>,
     ) -> EndExecutionReason {
         if let Some(reason) = self.check_end_execution(ctx) {
@@ -1775,7 +1770,7 @@ impl<'a> ExecutionContext<'a> {
     fn run_job_list(
         &mut self,
         ctx: &OperationContext<'_>,
-        job_list_node: &'a ast::JobList,
+        job_list_node: &ast::JobList,
         associated_block: Option<BlockId>,
     ) -> EndExecutionReason {
         let mut result = EndExecutionReason::Ok;
@@ -1789,7 +1784,7 @@ impl<'a> ExecutionContext<'a> {
     fn run_andor_job_list(
         &mut self,
         ctx: &OperationContext<'_>,
-        job_list_node: &'a ast::AndorJobList,
+        job_list_node: &ast::AndorJobList,
         associated_block: Option<BlockId>,
     ) -> EndExecutionReason {
         let mut result = EndExecutionReason::Ok;

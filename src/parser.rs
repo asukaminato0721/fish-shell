@@ -689,7 +689,6 @@ impl Parser {
         let mut execution_context = ExecutionContext::new(
             node.parsed_source_ref(),
             block_io.clone(),
-            &self.current_node,
             test_only_suppress_stderr,
         );
 
@@ -811,6 +810,10 @@ impl Parser {
     /// Returns the current line number, indexed from 1, or zero if not sourced.
     pub fn get_lineno_for_display(&self) -> u32 {
         self.get_lineno().map_or(0, |n| n.get())
+    }
+
+    pub fn current_node(&self) -> &ScopedRefCell<Option<NodeRef<ast::JobPipeline>>> {
+        &self.current_node
     }
 
     /// Returns a NodeRef to the current node being executed, if any.
