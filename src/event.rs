@@ -10,7 +10,7 @@ use crate::{
     job_group::MaybeJobId,
     parser::{Block, Parser},
     prelude::*,
-    proc::Pid,
+    proc::{InternalJobId, Pid},
     reader::reader_update_termsize,
     signal::{Signal, signal_check_cancel, signal_handle},
 };
@@ -51,12 +51,12 @@ pub enum EventDescription {
         pid: Option<Pid>,
         /// `internal_job_id` of the job to match.
         /// If this is 0, we match either all jobs (`pid == ANY_PID`) or no jobs (otherwise).
-        internal_job_id: u64,
+        internal_job_id: InternalJobId,
     },
     /// An event triggered by a job exit, triggering the 'caller'-style events only.
     CallerExit {
         /// Internal job ID.
-        caller_id: u64,
+        caller_id: InternalJobId,
     },
     /// A generic event.
     Generic {
@@ -239,7 +239,7 @@ impl Event {
         }
     }
 
-    pub fn job_exit(pgid: Pid, jid: u64) -> Self {
+    pub fn job_exit(pgid: Pid, jid: InternalJobId) -> Self {
         Self {
             desc: EventDescription::JobExit {
                 pid: Some(pgid),
@@ -253,7 +253,7 @@ impl Event {
         }
     }
 
-    pub fn caller_exit(internal_job_id: u64, job_id: MaybeJobId) -> Self {
+    pub fn caller_exit(internal_job_id: InternalJobId, job_id: MaybeJobId) -> Self {
         Self {
             desc: EventDescription::CallerExit {
                 caller_id: internal_job_id,

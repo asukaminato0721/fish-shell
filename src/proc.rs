@@ -609,7 +609,8 @@ pub struct JobFlags {
 
 /// The non user-visible, never-recycled job ID.
 /// Every job has a unique positive value for this.
-pub type InternalJobId = u64;
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, PartialOrd, Ord)]
+pub struct InternalJobId(u64);
 
 /// A struct representing a job. A job is a pipeline of one or more processes.
 #[derive(Default)]
@@ -641,7 +642,7 @@ impl Job {
         Job {
             properties,
             command_str,
-            internal_job_id: NEXT_INTERNAL_JOB_ID.fetch_add(1, Ordering::Relaxed),
+            internal_job_id: InternalJobId(NEXT_INTERNAL_JOB_ID.fetch_add(1, Ordering::Relaxed)),
             ..Default::default()
         }
     }

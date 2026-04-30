@@ -24,7 +24,7 @@ use crate::{
     parse_tree::{NodeRef, ParsedSourceRef, SourceLineCache, parse_source},
     portable_atomic::AtomicU64,
     prelude::*,
-    proc::{JobGroupRef, JobList, JobRef, Pid, ProcStatus, job_reap},
+    proc::{InternalJobId, JobGroupRef, JobList, JobRef, Pid, ProcStatus, job_reap},
     signal::{Signal, signal_check_cancel, signal_clear_cancel},
     wait_handle::WaitHandleStore,
 };
@@ -247,7 +247,7 @@ pub struct ScopedData {
 
     /// The internal job ID of the job being populated, or 0 if none.
     /// This supports the '--on-job-exit caller' feature.
-    pub caller_id: u64, // TODO should be InternalJobId
+    pub caller_id: InternalJobId,
 }
 
 impl Default for ScopedData {
@@ -261,7 +261,7 @@ impl Default for ScopedData {
             suppress_fish_trace: false,
             read_limit: 0,
             is_cleaning_procs: false,
-            caller_id: 0,
+            caller_id: InternalJobId::default(),
         }
     }
 }

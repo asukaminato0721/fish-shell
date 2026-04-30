@@ -9,7 +9,7 @@ use crate::global_safety::RelaxedAtomicBool;
 use crate::parse_execution::varname_error;
 use crate::parse_tree::NodeRef;
 use crate::parser_keywords::parser_keywords_is_reserved;
-use crate::proc::Pid;
+use crate::proc::{InternalJobId, Pid};
 use crate::signal::Signal;
 use crate::{err_fmt, err_str, function};
 use nix::unistd::getpid;
@@ -59,7 +59,7 @@ const LONG_OPTIONS: &[WOption] = &[
 
 /// Return the internal_job_id for a pid, or None if none.
 /// This looks through both active and finished jobs.
-fn job_id_for_pid(pid: Pid, parser: &Parser) -> Option<u64> {
+fn job_id_for_pid(pid: Pid, parser: &Parser) -> Option<InternalJobId> {
     if let Some(job) = parser.job_get_from_pid(pid) {
         Some(job.internal_job_id)
     } else {
@@ -154,9 +154,9 @@ fn parse_cmd_opts(
                     let caller_id = if parser.scope().is_subshell {
                         parser.scope().caller_id
                     } else {
-                        0
+                        InternalJobId::default()
                     };
-                    if caller_id == 0 {
+                    if caller_id == InternalJobId::default() {
                         err_str!("calling job for event handler not found")
                             .cmd(cmd)
                             .finish(streams);
