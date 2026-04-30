@@ -19,7 +19,7 @@ use crate::{
     redirection::RedirectionSpecList,
     signal::{Signal, signal_set_handlers_once},
     topic_monitor::{GenerationsList, Topic, topic_monitor_principal},
-    wait_handle::{InternalJobId, WaitHandle, WaitHandleRef, WaitHandleStore},
+    wait_handle::{WaitHandle, WaitHandleRef, WaitHandleStore},
     wutil::{perror_nix, wbasename},
 };
 use cfg_if::cfg_if;
@@ -606,6 +606,10 @@ pub struct JobFlags {
     // Indicates that we are the "group root." Any other jobs using this tree are nested.
     pub is_group_root: bool,
 }
+
+/// The non user-visible, never-recycled job ID.
+/// Every job has a unique positive value for this.
+pub type InternalJobId = u64;
 
 /// A struct representing a job. A job is a pipeline of one or more processes.
 #[derive(Default)]

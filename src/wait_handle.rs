@@ -1,11 +1,7 @@
 use crate::prelude::*;
-use crate::proc::Pid;
+use crate::proc::{InternalJobId, Pid};
 use std::cell::Cell;
 use std::rc::Rc;
-
-/// The non user-visible, never-recycled job ID.
-/// Every job has a unique positive value for this.
-pub type InternalJobId = u64;
 
 /// The bits of a job necessary to support 'wait' and '--on-process-exit'.
 /// This may outlive the job.
