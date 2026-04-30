@@ -638,7 +638,7 @@ pub struct Job {
 
 impl Job {
     pub fn new(properties: JobProperties, command_str: WString) -> Self {
-        static NEXT_INTERNAL_JOB_ID: AtomicU64 = AtomicU64::new(0);
+        static NEXT_INTERNAL_JOB_ID: AtomicU64 = AtomicU64::new(1);
         Job {
             properties,
             command_str,
