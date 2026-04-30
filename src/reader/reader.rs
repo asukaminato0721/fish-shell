@@ -6961,13 +6961,15 @@ impl<'a> Reader<'a> {
 
         // Construct a copy of the string from the beginning of the command substitution
         // up to the end of the token we're completing.
-        let cmdsub = &el.text()[cmdsub_range.start..token_range.end];
 
-        let (mut comp, _needs_load) = complete(
-            cmdsub,
-            CompletionRequestOptions::normal(),
-            &self.parser.context(),
-        );
+        let (mut comp, _needs_load) = {
+            let cmdsub = &el.text()[cmdsub_range.start..token_range.end];
+            complete(
+                cmdsub,
+                CompletionRequestOptions::normal(),
+                &self.parser.context(),
+            )
+        };
 
         let el = &self.command_line;
         // User-supplied completions may have changed the commandline - prevent buffer
