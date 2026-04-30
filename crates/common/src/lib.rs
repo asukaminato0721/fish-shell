@@ -1360,11 +1360,6 @@ impl<T, F: FnOnce(T)> ScopeGuard<T, F> {
         Self(Some((value, on_drop)))
     }
 
-    /// Invokes the callback, consuming the ScopeGuard.
-    pub fn commit(guard: Self) {
-        std::mem::drop(guard);
-    }
-
     /// Cancels the invocation of the callback, returning the original wrapped value.
     pub fn cancel(mut guard: Self) -> T {
         let (value, _) = guard.0.take().expect("Should always have Some value");
@@ -1397,12 +1392,7 @@ impl<T, F: FnOnce(T)> Drop for ScopeGuard<T, F> {
 /// A trait expressing what ScopeGuard can do. This is necessary because our scoped cells return an
 /// `impl Trait` object and therefore methods on ScopeGuard which take a self parameter cannot be
 /// used.
-pub trait ScopeGuarding: DerefMut + Sized {
-    /// Invokes the callback, consuming the guard.
-    fn commit(guard: Self) {
-        std::mem::drop(guard);
-    }
-}
+pub trait ScopeGuarding: DerefMut + Sized {}
 
 impl<T, F: FnOnce(T)> ScopeGuarding for ScopeGuard<T, F> {}
 
@@ -1561,17 +1551,17 @@ mod tests {
                 counter.fetch_add(1, relaxed);
             });
             assert_eq!(counter.load(relaxed), 0);
-            std::mem::drop(guard);
+            drop(guard);
             assert_eq!(counter.load(relaxed), 1);
         }
-        // commit also invokes the callback.
+        // The callback is invoked on drop
         {
             let guard = ScopeGuard::new(123, |arg| {
                 assert_eq!(arg, 123);
                 counter.fetch_add(1, relaxed);
             });
             assert_eq!(counter.load(relaxed), 1);
-            ScopeGuard::commit(guard);
+            drop(guard);
             assert_eq!(counter.load(relaxed), 2);
         }
     }

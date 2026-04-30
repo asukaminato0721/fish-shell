@@ -56,7 +56,7 @@ use crate::{
     trace::{trace_if_enabled, trace_if_enabled_with_args},
     wildcard::wildcard_match,
 };
-use fish_common::{ScopeGuard, ScopeGuarding, escape, help_section, truncate_at_nul};
+use fish_common::{ScopeGuard, escape, help_section, truncate_at_nul};
 use fish_widestring::WExt as _;
 use libc::{ENOTDIR, EXIT_SUCCESS, STDERR_FILENO, STDOUT_FILENO, c_int};
 use std::{io::ErrorKind, rc::Rc, sync::Arc};
@@ -1645,7 +1645,7 @@ impl ExecutionContext {
         // Populate the job. This may fail for reasons like command_not_found. If this fails, an error
         // will have been printed.
         let pop_result = self.populate_job_from_job_node(ctx, &mut job, job_node, associated_block);
-        ScopeGuarding::commit(_caller_id);
+        drop(_caller_id);
 
         // Clean up the job on failure or cancellation.
         if pop_result == EndExecutionReason::Ok {

@@ -694,7 +694,7 @@ impl Parser {
         let new_exec_count = self.libdata().exec_count;
         let new_status_count = self.libdata().status_count;
 
-        ScopeGuarding::commit(restore_current_node);
+        drop(restore_current_node);
         self.pop_block(scope_block);
 
         job_reap(self, false, Some(block_io)); // reap again
