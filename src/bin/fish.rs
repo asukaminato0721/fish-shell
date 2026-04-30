@@ -588,10 +588,8 @@ fn throwing_main() -> i32 {
                         list.iter().map(|s| s.to_owned()).collect(),
                     );
                     let _filename_push = parser
-                        .library_data
-                        .scoped_set(Some(Arc::new(filename.to_owned())), |s| {
-                            &mut s.current_filename
-                        });
+                        .current_filename
+                        .scoped_replace(Some(Arc::new(filename.to_owned())));
                     res = reader_read(parser, f.as_raw_fd(), &IoChain::new());
                     if res.is_err() {
                         flog!(

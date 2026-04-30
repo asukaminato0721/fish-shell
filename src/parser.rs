@@ -269,9 +269,6 @@ impl Default for ScopedData {
 /// Miscellaneous data used to avoid recursion and others.
 #[derive(Default)]
 pub struct LibraryData {
-    /// The current filename we are evaluating, either from builtin source or on the command line.
-    pub current_filename: Option<FilenameRef>,
-
     /// A fake value to be returned by builtin_commandline. This is used by the completion
     /// machinery when wrapping: e.g. if `tig` wraps `git` then git completions need to see git on
     /// the command line.
@@ -383,6 +380,9 @@ pub enum CancelBehavior {
 pub struct Parser {
     pub interactive_initialized: RelaxedAtomicBool,
 
+    /// The current filename we are evaluating, either from builtin source or on the command line.
+    pub current_filename: ScopedRefCell<Option<FilenameRef>>,
+
     /// The currently executing Node.
     current_node: ScopedRefCell<Option<NodeRef<ast::JobPipeline>>>,
 
@@ -445,6 +445,7 @@ impl Parser {
         let result = Self {
             interactive_initialized: RelaxedAtomicBool::new(false),
             current_node: ScopedRefCell::new(None),
+            current_filename: ScopedRefCell::new(None),
             job_list: RefCell::default(),
             wait_handles: RefCell::default(),
             block_list: RefCell::default(),
@@ -604,9 +605,7 @@ impl Parser {
     ) -> Result<EvalRes, WString> {
         let _interactive_push = self.push_scope(|s| s.is_interactive = false);
         let sb = self.push_block(Block::source_block(filename.clone()));
-        let _filename_push = self
-            .library_data
-            .scoped_set(Some(filename), |s| &mut s.current_filename);
+        let _filename_push = self.current_filename.scoped_replace(Some(filename));
 
         let ret = self.eval_wstr(src, io, job_group, BlockType::Top);
 
@@ -1200,7 +1199,7 @@ impl Parser {
                 Some(BlockData::Source { file, .. }) => Some(file.clone()),
                 _ => None,
             })
-            .or_else(|| self.libdata().current_filename.clone())
+            .or_else(|| self.current_filename.borrow().clone())
     }
 
     /// Return if we are interactive, which means we are executing a command that the user typed in

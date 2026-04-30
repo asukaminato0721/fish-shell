@@ -72,8 +72,8 @@ pub fn source(parser: &Parser, streams: &mut IoStreams, args: &mut [&wstr]) -> B
 
     let sb = parser.push_block(Block::source_block(func_filename.clone()));
     let _filename_push = parser
-        .library_data
-        .scoped_set(Some(func_filename.clone()), |s| &mut s.current_filename);
+        .current_filename
+        .scoped_replace(Some(func_filename.clone()));
 
     // Construct argv for the sourced file from our remaining args.
     // This is slightly subtle. If this is a bare `source` with no args then `argv + optind` already

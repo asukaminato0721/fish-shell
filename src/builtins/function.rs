@@ -317,7 +317,7 @@ pub fn function(
     }
 
     // Extract the current filename.
-    let definition_file = parser.libdata().current_filename.clone();
+    let definition_file = parser.current_filename.borrow().clone();
 
     // Ensure inherit_vars is unique and then populate it.
     opts.inherit_vars.sort_unstable();
