@@ -104,10 +104,6 @@ pub struct ParsedSource {
     pub ast: Ast,
 }
 
-// Safety: this can be derived once the src_ffi field is removed.
-unsafe impl Send for ParsedSource {}
-unsafe impl Sync for ParsedSource {}
-
 const _: () = assert_send::<ParsedSource>();
 const _: () = assert_sync::<ParsedSource>();
 
