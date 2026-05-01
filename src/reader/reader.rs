@@ -1622,9 +1622,9 @@ impl ReaderData {
     }
 
     pub fn mouse_left_click(&mut self, click_position: ViewportPosition) {
-        flogf!(
+        flog!(
             reader,
-            "Received left mouse click at %u",
+            "Received left mouse click at",
             format!("{:?}", click_position),
         );
         match self.screen.offset_in_cmdline_given_cursor(click_position) {
