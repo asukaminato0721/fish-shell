@@ -692,7 +692,12 @@ pub fn commandline(parser: &Parser, streams: &mut IoStreams, args: &mut [&wstr])
                 .finish(streams);
             return Err(STATUS_CMD_ERROR);
         }
-        transient = parser.libdata().transient_commandline.clone().unwrap();
+        transient = parser
+            .libdata()
+            .transient_commandline
+            .as_ref()
+            .unwrap()
+            .clone();
         current_buffer = &transient;
         current_cursor_pos = transient.len();
     } else if parser.interactive_initialized.load() || is_interactive_session() {
