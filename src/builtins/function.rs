@@ -64,7 +64,7 @@ fn job_id_for_pid(pid: Pid, parser: &Parser) -> Option<InternalJobId> {
         Some(job.internal_job_id)
     } else {
         parser
-            .get_wait_handles()
+            .wait_handles()
             .get_by_pid(pid)
             .map(|h| h.internal_job_id)
     }
@@ -366,13 +366,13 @@ pub fn function(
     for ed in &opts.events {
         match *ed {
             EventDescription::ProcessExit { pid: Some(pid) } => {
-                let wh = parser.get_wait_handles().get_by_pid(pid);
+                let wh = parser.wait_handles().get_by_pid(pid);
                 if let Some(status) = wh.and_then(|wh| wh.status()) {
                     event::fire(parser, event::Event::process_exit(pid, status));
                 }
             }
             EventDescription::JobExit { pid: Some(pid), .. } => {
-                let wh = parser.get_wait_handles().get_by_pid(pid);
+                let wh = parser.wait_handles().get_by_pid(pid);
                 if let Some(wh) = wh {
                     if wh.is_completed() {
                         event::fire(parser, event::Event::job_exit(pid, wh.internal_job_id));

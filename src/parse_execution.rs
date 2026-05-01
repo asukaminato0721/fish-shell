@@ -351,7 +351,7 @@ impl ExecutionContext {
                 buffer.push_utfstr(&escape(arg));
             }
             let parser = ctx.parser();
-            let prev_statuses = parser.get_last_statuses();
+            let prev_statuses = parser.last_statuses();
 
             let event = Event::generic(L!("fish_command_not_found").to_owned());
             let b = parser.push_block(Block::event_block(event));
@@ -702,7 +702,7 @@ impl ExecutionContext {
         not_statement: &ast::NotStatement,
     ) -> EndExecutionReason {
         {
-            let mut flags = job.mut_flags();
+            let mut flags = job.flags_mut();
             flags.negate = !flags.negate;
         }
         self.populate_job_process(
@@ -1023,8 +1023,8 @@ impl ExecutionContext {
             if cond_ret == EndExecutionReason::Ok {
                 cond_ret = self.run_andor_job_list(ctx, &if_clause.andor_tail, associated_block);
             }
-            let take_branch = cond_ret == EndExecutionReason::Ok
-                && ctx.parser().get_last_status() == EXIT_SUCCESS;
+            let take_branch =
+                cond_ret == EndExecutionReason::Ok && ctx.parser().last_status() == EXIT_SUCCESS;
 
             if take_branch {
                 // Condition succeeded.
@@ -1218,7 +1218,7 @@ impl ExecutionContext {
             let cond_saved_status = if first_cond_check {
                 Statuses::just(EXIT_SUCCESS)
             } else {
-                ctx.parser().get_last_statuses()
+                ctx.parser().last_statuses()
             };
             first_cond_check = false;
 
@@ -1233,7 +1233,7 @@ impl ExecutionContext {
             // exit the loop.
             if cond_ret != EndExecutionReason::Ok {
                 break;
-            } else if ctx.parser().get_last_status() != EXIT_SUCCESS {
+            } else if ctx.parser().last_status() != EXIT_SUCCESS {
                 ctx.parser().set_last_statuses(cond_saved_status);
                 break;
             }
@@ -1666,7 +1666,7 @@ impl ExecutionContext {
                 if !exec_job(parser, &job, self.block_io.clone()) {
                     // No process in the job successfully launched.
                     // Ensure statuses are set (#7540).
-                    if let Some(statuses) = job.get_statuses() {
+                    if let Some(statuses) = job.statuses() {
                         parser.set_last_statuses(statuses);
                         parser.libdata_mut().status_count += 1;
                     }
@@ -1712,7 +1712,7 @@ impl ExecutionContext {
         // Maybe skip the job if it has a leading and/or.
         let mut skip = false;
         if let Some(deco) = &jc.decorator {
-            let last_status = ctx.parser().get_last_status();
+            let last_status = ctx.parser().last_status();
             match deco.keyword() {
                 ParseKeyword::And => {
                     // AND. Skip if the last job failed.
@@ -1748,7 +1748,7 @@ impl ExecutionContext {
                 return reason;
             }
             // Check the conjunction type.
-            let last_status = ctx.parser().get_last_status();
+            let last_status = ctx.parser().last_status();
             let skip = match jc.conjunction.token_type() {
                 ParseTokenType::AndAnd => {
                     // AND. Skip if the last job failed.
@@ -1895,7 +1895,7 @@ impl ExecutionContext {
             ));
         }
         j.group().is_foreground.store(!j.is_initially_background());
-        j.mut_flags().is_group_root = true;
+        j.flags_mut().is_group_root = true;
     }
 
     // Return whether we should apply job control to our processes.

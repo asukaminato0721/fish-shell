@@ -87,7 +87,7 @@ pub fn source(parser: &Parser, streams: &mut IoStreams, args: &mut [&wstr]) -> B
     parser.pop_block(sb);
 
     match retval {
-        Ok(_) => BuiltinResult::from_dynamic(parser.get_last_status()),
+        Ok(_) => BuiltinResult::from_dynamic(parser.last_status()),
         Err(err) => {
             let esc = escape(&func_filename);
             err_fmt!(

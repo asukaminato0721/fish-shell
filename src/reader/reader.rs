@@ -870,7 +870,7 @@ fn read_i(parser: &Parser) {
         parser.libdata_mut().exit_current_script = false;
 
         BufferedOutputter::new(Outputter::stdoutput()).write_command(Osc133CommandFinished {
-            exit_status: parser.get_last_status(),
+            exit_status: parser.last_status(),
         });
         event::fire_generic(parser, L!("fish_postexec").to_owned(), vec![command]);
         // Allow any pending history items to be returned in the history array.
@@ -2677,7 +2677,7 @@ impl<'a> Reader<'a> {
     }
 
     fn eval_bind_cmd(&mut self, cmd: &wstr) {
-        let last_statuses = self.parser.vars().get_last_statuses();
+        let last_statuses = self.parser.vars().last_statuses();
         // Disable TTY protocols while we run a bind command, because it may call out.
         let mut scoped_tty = TtyHandoff::new(reader_save_screen_state);
         scoped_tty.disable_tty_protocols();

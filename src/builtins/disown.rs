@@ -18,7 +18,7 @@ fn disown_job(cmd: &wstr, streams: &mut IoStreams, j: &Job) {
     }
 
     // Stopped disowned jobs must be manually signaled; explain how to do so.
-    let pgid = j.get_pgid();
+    let pgid = j.pgid();
     if j.is_stopped() {
         if let Some(pgid) = pgid {
             let _ = killpg(pgid.as_nix_pid(), Some(Signal::SIGCONT));
@@ -35,7 +35,7 @@ fn disown_job(cmd: &wstr, streams: &mut IoStreams, j: &Job) {
     // We cannot directly remove the job from the jobs() list as `disown` might be called
     // within the context of a subjob which will cause the parent job to crash in exec_job().
     // Instead, we set a flag and the parser removes the job from the jobs list later.
-    j.mut_flags().disown_requested = true;
+    j.flags_mut().disown_requested = true;
     add_disowned_job(j);
 }
 

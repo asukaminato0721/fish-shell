@@ -44,7 +44,7 @@ fn cpu_use(j: &Job) -> f64 {
 
 /// Print information about the specified job.
 fn builtin_jobs_print(j: &Job, mode: JobsPrintMode, header: bool, streams: &mut IoStreams) {
-    let pgid = match j.get_pgid() {
+    let pgid = match j.pgid() {
         Some(pgid) => pgid.to_string(),
         None => "-".to_owned(),
     };

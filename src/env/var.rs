@@ -186,13 +186,13 @@ impl EnvVar {
     }
 
     /// Returns the variable's flags.
-    pub fn get_flags(&self) -> EnvVarFlags {
+    pub fn flags(&self) -> EnvVarFlags {
         self.flags
     }
 
     /// Returns the variable's value as a string.
     pub fn as_string(&self) -> WString {
-        join_strings(&self.values, self.get_delimiter())
+        join_strings(&self.values, self.delimiter())
     }
 
     /// Returns the variable's values.
@@ -201,7 +201,7 @@ impl EnvVar {
     }
 
     /// Returns the delimiter character used when converting from a list to a string.
-    pub fn get_delimiter(&self) -> char {
+    pub fn delimiter(&self) -> char {
         if self.is_pathvar() {
             PATH_ARRAY_SEP
         } else {

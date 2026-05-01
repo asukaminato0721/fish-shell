@@ -560,7 +560,7 @@ impl Parser {
                 test_only_suppress_stderr,
             )
         } else {
-            let status = ProcStatus::from_exit_code(self.get_last_status());
+            let status = ProcStatus::from_exit_code(self.last_status());
             EvalRes {
                 status,
                 break_expand: false,
@@ -703,7 +703,7 @@ impl Parser {
         if sig != 0 {
             EvalRes::new(ProcStatus::from_signal(Signal::new(sig)))
         } else {
-            let status = ProcStatus::from_exit_code(self.get_last_status());
+            let status = ProcStatus::from_exit_code(self.last_status());
             let break_expand = reason == EndExecutionReason::Error;
             EvalRes {
                 status,
@@ -755,7 +755,7 @@ impl Parser {
             return WString::new();
         };
 
-        let lineno = self.get_lineno_for_display();
+        let lineno = self.lineno_for_display();
         let file = self.current_filename();
 
         let mut prefix = WString::new();
@@ -798,13 +798,13 @@ impl Parser {
     }
 
     /// Returns the current line number, indexed from 1.
-    pub fn get_lineno(&self) -> Option<NonZeroU32> {
+    pub fn lineno(&self) -> Option<NonZeroU32> {
         self.current_node.borrow().as_ref().and_then(|n| n.lineno())
     }
 
     /// Returns the current line number, indexed from 1, or zero if not sourced.
-    pub fn get_lineno_for_display(&self) -> u32 {
-        self.get_lineno().map_or(0, |n| n.get())
+    pub fn lineno_for_display(&self) -> u32 {
+        self.lineno().map_or(0, |n| n.get())
     }
 
     pub fn current_node(&self) -> &ScopedRefCell<Option<NodeRef<ast::JobPipeline>>> {
@@ -922,7 +922,7 @@ impl Parser {
     }
 
     /// Get our wait handle store.
-    pub fn get_wait_handles(&self) -> Ref<'_, WaitHandleStore> {
+    pub fn wait_handles(&self) -> Ref<'_, WaitHandleStore> {
         self.wait_handles.borrow()
     }
     pub fn mut_wait_handles(&self) -> RefMut<'_, WaitHandleStore> {
@@ -930,11 +930,11 @@ impl Parser {
     }
 
     /// Get and set the last proc statuses.
-    pub fn get_last_status(&self) -> c_int {
-        self.vars().get_last_status()
+    pub fn last_status(&self) -> c_int {
+        self.vars().last_status()
     }
-    pub fn get_last_statuses(&self) -> Statuses {
-        self.vars().get_last_statuses()
+    pub fn last_statuses(&self) -> Statuses {
+        self.vars().last_statuses()
     }
     pub fn set_last_statuses(&self, s: Statuses) {
         self.vars().set_last_statuses(s);
@@ -2139,8 +2139,8 @@ mod tests {
         macro_rules! validate {
             ($cmd:expr, $result:expr) => {
                 parser.eval($cmd, &IoChain::new());
-                let exit_status = parser.get_last_status();
-                assert_eq!(exit_status, parser.get_last_status());
+                let exit_status = parser.last_status();
+                assert_eq!(exit_status, parser.last_status());
             };
         }
 

@@ -207,12 +207,12 @@ impl EnvStack {
 
     /// Helpers to get and set the proc statuses.
     /// These correspond to $status and $pipestatus.
-    pub fn get_last_statuses(&self) -> Statuses {
-        self.lock().base.get_last_statuses().clone()
+    pub fn last_statuses(&self) -> Statuses {
+        self.lock().base.last_statuses().clone()
     }
 
-    pub fn get_last_status(&self) -> c_int {
-        self.lock().base.get_last_statuses().status
+    pub fn last_status(&self) -> c_int {
+        self.lock().base.last_statuses().status
     }
 
     pub fn set_last_statuses(&self, statuses: Statuses) {

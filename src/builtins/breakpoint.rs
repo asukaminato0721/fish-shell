@@ -38,5 +38,5 @@ pub fn breakpoint(parser: &Parser, streams: &mut IoStreams, argv: &mut [&wstr]) 
     let io_chain = &streams.io_chain;
     reader_read(parser, STDIN_FILENO, io_chain)?;
     parser.pop_block(bpb);
-    BuiltinResult::from_dynamic(parser.get_last_status())
+    BuiltinResult::from_dynamic(parser.last_status())
 }

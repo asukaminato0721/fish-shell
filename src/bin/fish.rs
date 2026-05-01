@@ -605,7 +605,7 @@ fn throwing_main() -> i32 {
     let exit_status = if res.is_err() {
         STATUS_CMD_UNKNOWN
     } else {
-        parser.get_last_status()
+        parser.last_status()
     };
 
     event::fire(

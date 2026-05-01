@@ -307,7 +307,7 @@ pub(crate) fn set_desc(name: &wstr, desc: WString, parser: &Parser) {
 /// is successful.
 pub fn copy(name: &wstr, new_name: WString, parser: &Parser) -> bool {
     let filename = parser.current_filename();
-    let lineno = parser.get_lineno();
+    let lineno = parser.lineno();
 
     let mut funcset = FUNCTION_SET.lock().unwrap();
     let Some(props) = funcset.get_props(name) else {

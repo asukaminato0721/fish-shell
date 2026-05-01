@@ -78,7 +78,7 @@ fn find_wait_handles(
 
 fn get_all_wait_handles(parser: &Parser) -> Vec<WaitHandleRef> {
     // Get wait handles for reaped jobs.
-    let mut result = parser.get_wait_handles().get_list();
+    let mut result = parser.wait_handles().get_list();
 
     // Get wait handles for running jobs.
     for j in &*parser.jobs() {

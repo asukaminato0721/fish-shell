@@ -106,7 +106,7 @@ pub fn parse_return_value(
         return ControlFlow::Break(Err(STATUS_INVALID_ARGS));
     }
     if optind == args.len() {
-        ControlFlow::Continue(parser.get_last_status())
+        ControlFlow::Continue(parser.last_status())
     } else {
         match fish_wcstoi(args[optind]) {
             Ok(i) => ControlFlow::Continue(i),

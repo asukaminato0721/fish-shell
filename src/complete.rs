@@ -316,12 +316,12 @@ impl CompletionReceiver {
     }
 
     /// Returns the list of completions.
-    pub fn get_list(&self) -> &[Completion] {
+    pub fn as_list(&self) -> &[Completion] {
         &self.completions
     }
 
     /// Returns the list of completions.
-    pub fn get_list_mut(&mut self) -> &mut [Completion] {
+    pub fn as_list_mut(&mut self) -> &mut [Completion] {
         &mut self.completions
     }
 
@@ -976,7 +976,7 @@ impl<'ctx> Completer<'ctx> {
         }
 
         let keep_going =
-            self.completions.get_list().iter().any(|c| {
+            self.completions.as_list().iter().any(|c| {
                 c.completion.is_empty() || c.completion.as_char_slice().last() != Some(&'/')
             });
         if !keep_going {
@@ -1058,7 +1058,7 @@ impl<'ctx> Completer<'ctx> {
 
         // Then do a lookup on every completion and if a match is found, change to the new
         // description.
-        for completion in self.completions.get_list_mut() {
+        for completion in self.completions.as_list_mut() {
             let el = &completion.completion;
             if let Some(&desc) = lookup.get(el.as_utfstr()) {
                 completion.description = desc.to_owned();
@@ -1187,7 +1187,7 @@ impl<'ctx> Completer<'ctx> {
         let mut saved_statuses = None;
         let mut scope = None;
         if let Some(parser) = self.ctx.maybe_parser() {
-            saved_statuses = Some(parser.get_last_statuses());
+            saved_statuses = Some(parser.last_statuses());
             scope = Some(parser.push_scope(|s| s.is_interactive = false));
         }
 
@@ -2113,7 +2113,7 @@ impl<'ctx> Completer<'ctx> {
         arg_strs.sort();
 
         let mut comp_str;
-        for comp in self.completions.get_list_mut() {
+        for comp in self.completions.as_list_mut() {
             comp_str = comp.completion.clone();
             if !comp.replaces_token() {
                 comp_str.insert_utfstr(0, prefix);

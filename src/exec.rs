@@ -238,7 +238,7 @@ pub fn exec_job(parser: &Parser, job: &Job, block_io: IoChain) -> bool {
     // If exec_error then a backgrounded job would have been terminated before it was ever assigned
     // a pgroup, so error out before setting last_pid.
     if !job.is_foreground() {
-        if let Some(last_pid) = job.get_last_pid() {
+        if let Some(last_pid) = job.last_pid() {
             parser.set_one(
                 L!("last_pid"),
                 ParserEnvSetMode::new(EnvMode::GLOBAL),
@@ -669,14 +669,14 @@ fn run_internal_process_or_short_circuit(
                 j.preview(),
                 p.status().status_value()
             );
-            if let Some(statuses) = j.get_statuses() {
+            if let Some(statuses) = j.statuses() {
                 parser.set_last_statuses(statuses);
                 parser.libdata_mut().status_count += 1;
             } else if j.flags().negate {
                 // Special handling for `not set var (substitution)`.
                 // If there is no status, but negation was requested,
                 // take the last status and negate it.
-                let mut last_statuses = parser.get_last_statuses();
+                let mut last_statuses = parser.last_statuses();
                 last_statuses.status = if last_statuses.status == 0 { 1 } else { 0 };
                 parser.set_last_statuses(last_statuses);
             }
@@ -884,7 +884,7 @@ fn exec_external_command(
     // or we become the leader.
     let pgroup_policy = if p.leads_pgrp {
         PgroupPolicy::Lead
-    } else if let Some(pgid) = j.group().get_pgid() {
+    } else if let Some(pgid) = j.group().pgid() {
         PgroupPolicy::Join(pgid.as_pid_t())
     } else {
         PgroupPolicy::Inherit
@@ -1508,7 +1508,7 @@ fn exec_subshell_internal(
         };
     });
 
-    let prev_statuses = parser.get_last_statuses();
+    let prev_statuses = parser.last_statuses();
     let _put_back = ScopeGuard::new((), |()| {
         if !apply_exit_status {
             parser.set_last_statuses(prev_statuses);

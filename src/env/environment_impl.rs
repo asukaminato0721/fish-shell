@@ -343,7 +343,7 @@ impl EnvScopedImpl {
         }
     }
 
-    pub fn get_last_statuses(&self) -> &Statuses {
+    pub fn last_statuses(&self) -> &Statuses {
         &self.perproc_data.statuses
     }
 

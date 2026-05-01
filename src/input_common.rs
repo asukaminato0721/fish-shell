@@ -1642,8 +1642,8 @@ pub trait InputEventQueuer {
     /// The default does nothing.
     fn ioport_notified(&mut self) {}
 
-    /// Reset the function status.
-    fn get_function_status(&self) -> bool {
+    /// Get the function status.
+    fn function_status(&self) -> bool {
         self.get_input_data().function_status
     }
 

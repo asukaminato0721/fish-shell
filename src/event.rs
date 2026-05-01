@@ -498,7 +498,7 @@ fn fire_internal(parser: &Parser, event: &Event) {
         // Event handlers are not part of the main flow of code, so they are marked as
         // non-interactive.
         let _non_interactive = parser.push_scope(|s| s.is_interactive = false);
-        let saved_statuses = parser.get_last_statuses();
+        let saved_statuses = parser.last_statuses();
         let _cleanup = ScopeGuard::new((), |()| {
             parser.set_last_statuses(saved_statuses);
         });

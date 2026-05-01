@@ -753,7 +753,7 @@ impl<'a> Reader<'a> {
                     }
                     ReadlineCmd::FuncAnd | ReadlineCmd::FuncOr => {
                         // If previous function has bad status, skip all functions that follow us.
-                        let fs = self.get_function_status();
+                        let fs = self.function_status();
                         if (!fs && readline_event.cmd == ReadlineCmd::FuncAnd)
                             || (fs && readline_event.cmd == ReadlineCmd::FuncOr)
                         {

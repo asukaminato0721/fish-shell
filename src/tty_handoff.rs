@@ -424,7 +424,7 @@ impl TtyHandoff {
         }
 
         // Get the pgid; we must have one if we want the terminal.
-        let pgid = jg.get_pgid().unwrap();
+        let pgid = jg.pgid().unwrap();
 
         // It should never be fish's pgroup.
         let fish_pgrp = getpgrp();

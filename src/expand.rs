@@ -723,7 +723,7 @@ fn expand_variables(
         let delimit = if history.is_some() {
             ' '
         } else {
-            var.as_ref().unwrap().get_delimiter()
+            var.as_ref().unwrap().delimiter()
         };
         let mut res = instr[..varexp_char_idx].to_owned();
         if !res.is_empty() {

@@ -88,7 +88,7 @@ impl EnvUniversal {
     }
     // Return flags from the variable with the given name.
     pub fn get_flags(&self, name: &wstr) -> Option<EnvVarFlags> {
-        self.vars.get(name).map(|var| var.get_flags())
+        self.vars.get(name).map(|var| var.flags())
     }
     // Sets a variable.
     pub fn set(&mut self, key: &wstr, var: EnvVar) {
@@ -323,12 +323,7 @@ impl EnvUniversal {
             .for_each(|(k, v)| {
                 // Append the entry. Note that append_file_entry may fail,
                 // but that only affects one variable; soldier on.
-                append_file_entry(
-                    v.get_flags(),
-                    k,
-                    &encode_serialized(v.as_list()),
-                    &mut contents,
-                );
+                append_file_entry(v.flags(), k, &encode_serialized(v.as_list()), &mut contents);
             });
 
         contents

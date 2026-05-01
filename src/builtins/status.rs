@@ -626,7 +626,7 @@ pub fn status(parser: &Parser, streams: &mut IoStreams, args: &mut [&wstr]) -> B
                     // streams.out.append_format(L"%d\n", parser.get_lineno(opts.level));
                     streams
                         .out
-                        .appendln(&parser.get_lineno_for_display().to_wstring());
+                        .appendln(&parser.lineno_for_display().to_wstring());
                 }
                 STATUS_IS_INTERACTIVE => {
                     if is_interactive_session() {

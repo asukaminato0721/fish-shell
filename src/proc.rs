@@ -541,7 +541,7 @@ impl Process {
     }
 
     /// Return the wait handle for the process, if it exists.
-    pub fn get_wait_handle(&self) -> Option<WaitHandleRef> {
+    pub fn wait_handle(&self) -> Option<WaitHandleRef> {
         self.wait_handle.borrow().clone()
     }
 
@@ -565,7 +565,7 @@ impl Process {
                 wbasename(&self.actual_cmd.clone()).to_owned(),
             )));
         }
-        self.get_wait_handle()
+        self.wait_handle()
     }
 }
 
@@ -682,7 +682,7 @@ impl Job {
             // Can't reap twice.
             p.is_completed() ||
             // Can't reap the group leader in an under-construction job.
-            (!self.is_constructed() && self.get_pgid() == p.pid())
+            (!self.is_constructed() && self.pgid() == p.pid())
         )
     }
 
@@ -703,14 +703,14 @@ impl Job {
 
     /// Return our pgid, or none if we don't have one, or are internal to fish
     /// This never returns fish's own pgroup.
-    pub fn get_pgid(&self) -> Option<Pid> {
-        self.group().get_pgid()
+    pub fn pgid(&self) -> Option<Pid> {
+        self.group().pgid()
     }
 
     /// Return the pid of the last external process in the job.
     /// This may be none if the job consists of just internal fish functions or builtins.
     /// This will never be fish's own pid.
-    pub fn get_last_pid(&self) -> Option<Pid> {
+    pub fn last_pid(&self) -> Option<Pid> {
         self.external_procs().last().and_then(|proc| proc.pid())
     }
 
@@ -726,7 +726,7 @@ impl Job {
     }
 
     /// Access mutable job flags.
-    pub fn mut_flags(&self) -> RefMut<'_, JobFlags> {
+    pub fn flags_mut(&self) -> RefMut<'_, JobFlags> {
         self.job_flags.borrow_mut()
     }
 
@@ -748,7 +748,7 @@ impl Job {
     /// Mark this job as constructed. The job must not have previously been marked as constructed.
     pub fn mark_constructed(&self) {
         assert!(!self.is_constructed(), "Job was already constructed");
-        self.mut_flags().constructed = true;
+        self.flags_mut().constructed = true;
     }
 
     /// Return whether we have internal or external procs, respectively.
@@ -848,7 +848,7 @@ impl Job {
             let procs = self.processes();
             let p = procs.last().unwrap();
             if p.status().normal_exited() || p.status().signal_exited() {
-                if let Some(statuses) = self.get_statuses() {
+                if let Some(statuses) = self.statuses() {
                     parser.set_last_statuses(statuses);
                     parser.libdata_mut().status_count += 1;
                 }
@@ -859,7 +859,7 @@ impl Job {
     /// Prepare to resume a stopped job by sending SIGCONT and clearing the stopped flag.
     /// Return true on success, false if we failed to send the signal.
     pub fn resume(&self) -> bool {
-        self.mut_flags().notified_of_stop = false;
+        self.flags_mut().notified_of_stop = false;
         if !self.signal(NixSignal::SIGCONT) {
             flogf!(
                 proc_pgroup,
@@ -879,7 +879,7 @@ impl Job {
     /// Send the specified signal to all processes in this job.
     /// Return true on success, false on failure.
     pub fn signal(&self, signal: NixSignal) -> bool {
-        if let Some(pgid) = self.group().get_pgid() {
+        if let Some(pgid) = self.group().pgid() {
             if let Err(err) = killpg(pgid.as_nix_pid(), signal) {
                 perror_nix(&format!("killpg({pgid}, {})", signal.as_str()), err);
                 return false;
@@ -896,7 +896,7 @@ impl Job {
     }
 
     /// Returns the statuses for this job.
-    pub fn get_statuses(&self) -> Option<Statuses> {
+    pub fn statuses(&self) -> Option<Statuses> {
         let mut st = Statuses::default();
         let mut has_status = false;
         let mut laststatus = 0;
@@ -1132,7 +1132,7 @@ pub fn hup_jobs(jobs: &JobList) {
     let fish_pgrp = getpgrp();
     let mut kill_list = Vec::new();
     for j in jobs {
-        let Some(pgid) = j.get_pgid() else { continue };
+        let Some(pgid) = j.pgid() else { continue };
         if pgid.as_nix_pid() != fish_pgrp && !j.is_completed() {
             j.signal(NixSignal::SIGHUP);
             if j.is_stopped() {
@@ -1272,7 +1272,7 @@ fn process_mark_finished_children(parser: &Parser, block_ok: bool, block_io: Opt
                 j.group().set_is_foreground(false);
             }
             if status.continued() {
-                j.mut_flags().notified_of_stop = false;
+                j.flags_mut().notified_of_stop = false;
             }
             if status.normal_exited() || status.signal_exited() {
                 flogf!(
@@ -1378,7 +1378,7 @@ fn generate_job_exit_events(j: &Job, out_evts: &mut Vec<Event>) {
     if !j.from_event_handler() || !j.is_foreground() {
         // job_exit events.
         if j.posts_job_exit_events() {
-            if let Some(last_pid) = j.get_last_pid() {
+            if let Some(last_pid) = j.last_pid() {
                 out_evts.push(Event::job_exit(last_pid, j.internal_job_id));
             }
         }
@@ -1441,7 +1441,7 @@ fn job_or_proc_wants_summary(j: &Job) -> bool {
 fn call_job_summary(parser: &Parser, cmd: &wstr) {
     let event = Event::generic(L!("fish_job_summary").to_owned());
     let b = parser.push_block(Block::event_block(event));
-    let saved_status = parser.get_last_statuses();
+    let saved_status = parser.last_statuses();
     parser.eval(cmd, &IoChain::new());
     parser.set_last_statuses(saved_status);
     parser.pop_block(b);
@@ -1546,7 +1546,7 @@ fn save_wait_handle_for_completed_job(job: &Job, store: &mut WaitHandleStore) {
 
     // Mark all wait handles as complete (but don't create just for this).
     for proc in job.processes().iter() {
-        if let Some(wh) = proc.get_wait_handle() {
+        if let Some(wh) = proc.wait_handle() {
             wh.set_status_and_complete(proc.status().status_value());
         }
     }
@@ -1590,7 +1590,7 @@ fn process_clean_after_marking(parser: &Parser, interactive: bool) -> bool {
             && should_process_job(j)
             && job_wants_summary(j)
         {
-            j.mut_flags().notified_of_stop = true;
+            j.flags_mut().notified_of_stop = true;
             jobs_to_summarize.push(j.clone());
         }
     }

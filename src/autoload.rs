@@ -126,7 +126,7 @@ impl Autoload {
         // We do the useful part of what exec_subshell does ourselves
         // - we source the file.
         // We don't create a buffer or check ifs or create a read_limit
-        let prev_statuses = parser.get_last_statuses();
+        let prev_statuses = parser.last_statuses();
         let _put_back = ScopeGuard::new((), |()| parser.set_last_statuses(prev_statuses));
         match path {
             AutoloadPath::OnDisk(p) => {
