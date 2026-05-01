@@ -688,11 +688,13 @@ impl Parser {
         );
 
         // Check the exec count so we know if anything got executed.
-        let prev_exec_count = self.libdata().exec_count;
-        let prev_status_count = self.libdata().status_count;
+        let exec_counts = || {
+            let ld = op_ctx.parser().libdata();
+            (ld.exec_count, ld.status_count)
+        };
+        let (prev_exec_count, prev_status_count) = exec_counts();
         let reason = execution_context.eval_node(&op_ctx, &**node, Some(scope_block));
-        let new_exec_count = self.libdata().exec_count;
-        let new_status_count = self.libdata().status_count;
+        let (new_exec_count, new_status_count) = exec_counts();
 
         drop(restore_current_node);
         self.pop_block(scope_block);
