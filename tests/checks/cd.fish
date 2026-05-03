@@ -336,8 +336,8 @@ begin
 end
 
 complete -C'cd .'
-# CHECK: ../
 # CHECK: ./
+# CHECK: ../
 
 # Check that cd works with minimal permissions (issue #10432).
 # This is first supported on macOS 12.

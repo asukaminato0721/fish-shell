@@ -65,7 +65,13 @@ pub fn wcsfilecmp(a: &wstr, b: &wstr) -> Ordering {
 
         let transform = |c| {
             // Sort dashes after Z - see #5634
-            if c == '-' { '[' } else { c }
+            if c == '-' {
+                return '[';
+            }
+            if c == '/' {
+                return '\0';
+            }
+            c
         };
         let ac = transform(ac);
         let bc = transform(bc);
@@ -317,5 +323,8 @@ mod tests {
         validate!("a00b", "a0b", Ordering::Less);
         validate!("a0b", "a00b", Ordering::Greater);
         validate!("a-b", "azb", Ordering::Greater);
+        validate!("a", "a b", Ordering::Less);
+        validate!("a/", "a b/", Ordering::Less);
+        validate!("a/b", "a b", Ordering::Less); // Note this is arbitrary.
     }
 }
