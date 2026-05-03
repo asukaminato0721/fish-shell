@@ -1550,11 +1550,25 @@ impl ExecutionContext {
             .scoped_replace(Some(executing_node));
 
         // Profiling support.
-        let profile_item_id = ctx.parser().create_profile_item();
-        let start_time = if profile_item_id.is_some() {
-            ProfileItem::now()
-        } else {
-            0
+        let finalize_profile_item = {
+            let profile_item_id = ctx.parser().create_profile_item();
+            let start_time = if profile_item_id.is_some() {
+                ProfileItem::now()
+            } else {
+                0
+            };
+            move |ctx: &OperationContext<'_>, cmd: WString, skipped: bool| {
+                let Some(profile_item_id) = profile_item_id else {
+                    return;
+                };
+                let parser = ctx.parser();
+                let mut profile_items = parser.profile_items_mut();
+                let profile_item = &mut profile_items[profile_item_id];
+                profile_item.duration = ProfileItem::now() - start_time;
+                profile_item.level = ctx.parser().scope().eval_level;
+                profile_item.cmd = cmd;
+                profile_item.skipped = skipped;
+            }
         };
 
         let job_is_background = job_node.bg.is_some();
@@ -1607,16 +1621,11 @@ impl ExecutionContext {
                 };
             }
 
-            if let Some(profile_item_id) = profile_item_id {
-                let parser = ctx.parser();
-                let mut profile_items = parser.profile_items_mut();
-                let profile_item = &mut profile_items[profile_item_id];
-                profile_item.duration = ProfileItem::now() - start_time;
-                profile_item.level = ctx.parser().scope().eval_level;
-                profile_item.cmd =
-                    profiling_cmd_name_for_redirectable_block(statement, self.pstree());
-                profile_item.skipped = false;
-            }
+            finalize_profile_item(
+                ctx,
+                profiling_cmd_name_for_redirectable_block(statement, self.pstree()),
+                false,
+            );
 
             return result;
         }
@@ -1684,15 +1693,11 @@ impl ExecutionContext {
             }
         }
 
-        if let Some(profile_item_id) = profile_item_id {
-            let parser = ctx.parser();
-            let mut profile_items = parser.profile_items_mut();
-            let profile_item = &mut profile_items[profile_item_id];
-            profile_item.duration = ProfileItem::now() - start_time;
-            profile_item.level = ctx.parser().scope().eval_level;
-            profile_item.cmd = job.command().to_owned();
-            profile_item.skipped = pop_result != EndExecutionReason::Ok;
-        }
+        finalize_profile_item(
+            ctx,
+            job.command().to_owned(),
+            pop_result != EndExecutionReason::Ok,
+        );
 
         job_reap(ctx.parser(), false, Some(&self.block_io)); // clean up jobs
         pop_result
