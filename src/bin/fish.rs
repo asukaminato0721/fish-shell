@@ -518,11 +518,7 @@ fn throwing_main() -> i32 {
     // TODO(MSRV>=1.88): feature(let_chains)
     if let Some(path) = &opts.profile_startup_output {
         if opts.profile_startup_output != opts.profile_output {
-            parser.emit_profiling(path);
-
-            // If we are profiling both, ensure the startup data only
-            // ends up in the startup file.
-            parser.clear_profiling();
+            parser.flush_profiling(path);
         }
     }
 
@@ -621,7 +617,7 @@ fn throwing_main() -> i32 {
     );
 
     if let Some(profile_output) = opts.profile_output {
-        parser.emit_profiling(&profile_output);
+        parser.flush_profiling(&profile_output);
     }
 
     history::save_all();

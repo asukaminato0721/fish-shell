@@ -1119,13 +1119,8 @@ impl Parser {
         self.profile_items.borrow_mut()
     }
 
-    /// Remove the profiling items.
-    pub fn clear_profiling(&self) {
-        self.profile_items.borrow_mut().clear();
-    }
-
-    /// Output profiling data to the given filename.
-    pub fn emit_profiling(&self, path: &OsStr) {
+    /// Flush profiling data to the given filename.
+    pub fn flush_profiling(&self, path: &OsStr) {
         // Save profiling information. OK to not use CLO_EXEC here because this is called while fish is
         // exiting (and hence will not fork).
         let mut f = match std::fs::File::create(path) {
@@ -1142,7 +1137,9 @@ impl Parser {
                 return;
             }
         };
-        print_profile(&self.profile_items.borrow(), &mut f);
+        let mut profile_items = self.profile_items.borrow_mut();
+        print_profile(&profile_items, &mut f);
+        profile_items.clear();
     }
 
     pub fn get_backtrace(&self, src: &wstr, errors: &ParseErrorList) -> WString {
