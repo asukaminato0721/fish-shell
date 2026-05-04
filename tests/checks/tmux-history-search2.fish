@@ -26,8 +26,9 @@ isolated-tmux capture-pane -p
 # CHECK: prompt 5> : fooba
 # CHECK: foobar  foobaz
 
-isolated-tmux send-keys C-u C-l \
-    'read' Enter read-input Enter
+isolated-tmux send-keys C-u C-l 'read' Enter
+tmux-sleep
+isolated-tmux send-keys read-input Enter
 tmux-sleep
 isolated-tmux send-keys \
     'set fish_history' Enter \
