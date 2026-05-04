@@ -1,9 +1,6 @@
 fish ?.?.? (released ???)
 =========================
 
-Notable improvements and fixes
-------------------------------
-
 Deprecations and removed features
 ---------------------------------
 - The default theme (i.e. the ``fish_color_*`` variables) is no longer set in non-interactive shells.
@@ -11,30 +8,33 @@ Deprecations and removed features
 Interactive improvements
 ------------------------
 - :doc:`prompt_pwd <cmds/prompt_pwd>` now strips control characters.
-- Repaint events (as triggered by changes to color variables or event handlers running ``commandline -f repaint``) no longer reset the completion pager and other transient UI states (:issue:`12683`).
-- Background color and underline color specified in :envvar:`fish_color_valid_path` are now respected (:issue:`12622`).
-
-Improved terminal support
--------------------------
+- Repaint events (as triggered by changes to color variables or by event handlers running ``commandline -f repaint``) no longer reset the completion pager and other transient UI states (:issue:`12683`).
+- :envvar:`fish_color_valid_path` now respects background and underline colors (:issue:`12622`).
+- :doc:`funced <cmds/funced>` will no longer lose work if there are parse errors multiple times without new changes to the file.
+- Fixed a case where directory completions were sorted in a surprising order (:issue:`12695`).
+- When at the command token, the :kbd:`alt-o` binding will now open read-only files too (:issue:`12671`).
+- Private mode in-memory history (``set fish_history``) is no longer shared with :doc:`builtin read <cmds/read>` (:issue:`12662`).
 
 Other improvements
 ------------------
 - History is no longer corrupted with NUL bytes when fish receives SIGTERM or SIGHUP (:issue:`10300`).
-- Private mode in-memory history (``set fish_history``) is no longer shared with :doc:`builtin read <cmds/read>` (:issue:`12662`).
 - :doc:`fish_update_completions <cmds/fish_update_completions>` now handles groff ``\X'...'`` device control escapes, fixing completion generation for man pages produced by help2man 1.50 and later (such as coreutils 9.10).
-- Improve user experience when removing history entries via the :doc:`web-based config <cmds/fish_config>`.
-- :doc:`funced <cmds/funced>` will no longer lose work if there are parse errors multiple times without new changes to the file.
-- Move some internal file descriptors to number 10 or higher to reduce risk of clashes with those used by the user in scripts.
+- Removing history entries via the :doc:`web-based config <cmds/fish_config>` is more intuitive.
+- If :envvar:`XDG_DATA_DIRS` is empty, the default value is assumed, which means that fish will now also use configuration from paths like ``$PREFIX/share/fish/vendor_completions.d`` (:issue:`11349`).
+- Some internal file descriptors were moved to number 10 or higher, to reduce risk of clashes with those used by the user in scripts.
+- The wording of error messages has been made consistent, especially for builtin subcommands (:issue:`12556`).
 
 For distributors and developers
 -------------------------------
 - When the default global config directory (``$PREFIX/etc/fish``) exists but has been overridden via ``-DCMAKE_INSTALL_SYSCONFDIR``, fish will now respect that override (:issue:`10748`).
 - ``build_tools/update_translations.fish`` has been replaced by ``cargo xtask gettext {check,new,update}`` (:issue:`12676`).
+- ``cargo xtask shellcheck`` to lint shell-scripts.
 
 Regression fixes:
 -----------------
-- Vi mode ``dl`` (:issue:`12461`).
+- (from 4.6) Vi mode ``dl`` (:issue:`12461`).
 - (from 4.6) Backspace after newline (:issue:`12583`).
+- (from 4.3.3) Long options were spuriously completed after typing short options (85e76ba3561).
 - (from 3.2) ``nosuchcommand || echo hello`` executes the right hand side again (:issue:`12654`).
 
 fish 4.6.0 (released March 28, 2026)
